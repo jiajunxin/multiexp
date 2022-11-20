@@ -1,3 +1,3 @@
-module github.com/jiajunxin/multiExp
+module github.com/jiajunxin/multiexp
 
 go 1.19
