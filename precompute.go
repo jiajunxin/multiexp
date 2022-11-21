@@ -28,6 +28,9 @@ func PreCompute(base, modular *Int, tableSize int) *PreTable {
 	if len(x) == 1 && x[0] == 1 {
 		return nil
 	}
+	if tableSize <= 0 {
+		return nil
+	}
 
 	// x > 1
 
