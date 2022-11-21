@@ -2,7 +2,6 @@ package multiexp
 
 import (
 	"fmt"
-	"math/big"
 	. "math/big"
 )
 
@@ -13,10 +12,10 @@ import (
 // and x and m are not relatively prime, z is unchanged and nil is returned.
 //
 // DoubleExp is not a cryptographically constant-time operation.
-func DoubleExp(x, y1, y2, m *big.Int) []*big.Int {
+func DoubleExp(x, y1, y2, m *Int) []*Int {
 	// See Knuth, volume 2, section 4.6.3.
 	var z1, z2 Int
-	ret := make([]*big.Int, 2)
+	ret := make([]*Int, 2)
 	ret[0] = &z1
 	ret[1] = &z2
 
