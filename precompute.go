@@ -206,19 +206,19 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	yNew[1], yNew[3], cm13 = gcb(yNew[1], yNew[3])
 	yNew[0], yNew[3], cm03 = gcb(yNew[0], yNew[3])
 	yNew[1], yNew[2], cm12 = gcb(yNew[1], yNew[2])
+	c0 := make(chan []nat)
 	c1 := make(chan []nat)
 	c2 := make(chan []nat)
 	c3 := make(chan []nat)
-	c4 := make(chan []nat)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, yNew[:4], pretable, c1)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{yNew[4], cm012, cm013, cm023}, pretable, c2)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm123, cm01, cm23, cm02}, pretable, c3)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm13, cm03, cm12}, pretable, c4)
+	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, yNew[:4], pretable, c0)
+	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{yNew[4], cm012, cm013, cm023}, pretable, c1)
+	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm123, cm01, cm23, cm02}, pretable, c2)
+	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm13, cm03, cm12}, pretable, c3)
 
-	z1 := <-c1
-	z2 := <-c2
-	z3 := <-c3
-	z4 := <-c4
+	z1 := <-c0
+	z2 := <-c1
+	z3 := <-c2
+	z4 := <-c3
 	z := append(z1, z2...)
 	z = append(z, z3...)
 	z = append(z, z4...)
@@ -226,12 +226,20 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	//z := multimontgomeryWithPreComputeTable(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12), pretable)
 	// calculate the actual values
 
-	go assembleAndConvert(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
-	go assembleAndConvert(&z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords)
-	go assembleAndConvert(&z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords)
-	go assembleAndConvert(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords)
+	cc0 := make(chan nat)
+	cc1 := make(chan nat)
+	cc2 := make(chan nat)
+	cc3 := make(chan nat)
 
-	z = z[:4] //the rest are useless now
+	go assembleAndConvertWithChan(z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords, cc0)
+	go assembleAndConvertWithChan(z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords, cc1)
+	go assembleAndConvertWithChan(z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords, cc2)
+	go assembleAndConvertWithChan(z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords, cc3)
+	r := make([]nat, 4)
+	r[0] = <-cc0
+	r[1] = <-cc1
+	r[2] = <-cc2
+	r[3] = <-cc3
 
 	ret := make([]*Int, 4)
 	for i := range ret {
@@ -239,16 +247,19 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	}
 
 	// normlize and set value
-	for i := range z {
+	for i := range r {
 		z[i].norm()
-		ret[i].SetBits(z[i])
+		ret[i].SetBits(r[i])
 	}
 	return ret
 }
 
-func assembleAndConvert(prod *nat, set []nat, m nat, k0 Word, numWords int) {
+func assembleAndConvert(prod *nat, set []nat, mm nat, k0 Word, numWords int) {
 	var temp nat
 	temp = temp.make(numWords)
+	var m nat
+	m = m.make(numWords)
+	copy(m, mm)
 	for i := range set {
 		temp = temp.montgomery(*prod, set[i], m, k0, numWords)
 
@@ -278,6 +289,44 @@ func assembleAndConvert(prod *nat, set []nat, m nat, k0 Word, numWords int) {
 			_, *prod = nat(nil).div(nil, *prod, m)
 		}
 	}
+}
+
+func assembleAndConvertWithChan(prod nat, set []nat, mm nat, k0 Word, numWords int, c chan nat) {
+	var temp nat
+	temp = temp.make(numWords)
+	var m nat
+	m = m.make(numWords)
+	copy(m, mm)
+	for i := range set {
+		temp = temp.montgomery(prod, set[i], m, k0, numWords)
+
+		prod, temp = temp, prod
+		//fmt.Println("prod", i, " = ", prod.String())
+	}
+
+	// one = 1, with equal length to that of m
+	one := make(nat, numWords)
+	one[0] = 1
+	// convert to regular number
+	temp = temp.montgomery(prod, one, m, k0, numWords)
+	prod, temp = temp, prod
+	//fmt.Println("prod convert = ", prod.String())
+	// One last reduction, just in case.
+	// See golang.org/issue/13907.
+	if prod.cmp(m) >= 0 {
+		// Common case is m has high bit set; in that case,
+		// since zz is the same length as m, there can be just
+		// one multiple of m to remove. Just subtract.
+		// We think that the subtract should be sufficient in general,
+		// so do that unconditionally, but double-check,
+		// in case our beliefs are wrong.
+		// The div is not expected to be reached.
+		prod = (prod).sub(prod, m)
+		if prod.cmp(m) >= 0 {
+			_, prod = nat(nil).div(nil, prod, m)
+		}
+	}
+	c <- prod
 }
 
 // multimontgomery calculates the modular montgomery exponent with result not normlized
