@@ -188,7 +188,10 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	c2 := make(chan []nat)
 	c3 := make(chan []nat)
 	c4 := make(chan []nat)
-
+	fmt.Println("yNew[0] = ", yNew[0].String())
+	fmt.Println("yNew[1] = ", yNew[1].String())
+	fmt.Println("yNew[2] = ", yNew[2].String())
+	fmt.Println("yNew[3] = ", yNew[3].String())
 	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, yNew[:4], pretable, c1)
 	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{yNew[4], cm012, cm013, cm023}, pretable, c2)
 	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm123, cm01, cm23, cm02}, pretable, c3)
@@ -205,10 +208,10 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	//z := multimontgomeryWithPreComputeTable(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12), pretable)
 	// calculate the actual values
 
-	go assembleAndConvert(z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
-	go assembleAndConvert(z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords)
-	go assembleAndConvert(z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords)
-	go assembleAndConvert(z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords)
+	go assembleAndConvert(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
+	go assembleAndConvert(&z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords)
+	go assembleAndConvert(&z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords)
+	go assembleAndConvert(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords)
 
 	// // retrive common values for first number
 	// temp = temp.montgomery(z[0], z[4], m, k0, numWords)
@@ -286,23 +289,27 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	return ret
 }
 
-func assembleAndConvert(prod nat, set []nat, m nat, k0 Word, numWords int) {
+func assembleAndConvert(prod *nat, set []nat, m nat, k0 Word, numWords int) {
 	var temp nat
 	temp = temp.make(numWords)
 	for i := range set {
-		temp = temp.montgomery(prod, set[i], m, k0, numWords)
-		prod, temp = temp, prod
+		temp = temp.montgomery(*prod, set[i], m, k0, numWords)
+
+		*prod, temp = temp, *prod
+		fmt.Println("prod", i, " = ", prod.String())
 	}
 
 	// one = 1, with equal length to that of m
 	one := make(nat, numWords)
 	one[0] = 1
 	// convert to regular number
-	temp = temp.montgomery(prod, one, m, k0, numWords)
-	prod, temp = temp, prod
+	temp = temp.montgomery(*prod, one, m, k0, numWords)
+	*prod, temp = temp, *prod
+	fmt.Println("prod convert = ", prod.String())
 	// One last reduction, just in case.
 	// See golang.org/issue/13907.
 	if prod.cmp(m) >= 0 {
+		fmt.Println("prod.cmp(m) >= 0 , m = ", m.String())
 		// Common case is m has high bit set; in that case,
 		// since zz is the same length as m, there can be just
 		// one multiple of m to remove. Just subtract.
@@ -310,9 +317,9 @@ func assembleAndConvert(prod nat, set []nat, m nat, k0 Word, numWords int) {
 		// so do that unconditionally, but double-check,
 		// in case our beliefs are wrong.
 		// The div is not expected to be reached.
-		prod = prod.sub(prod, m)
+		*prod = (*prod).sub(*prod, m)
 		if prod.cmp(m) >= 0 {
-			_, prod = nat(nil).div(nil, prod, m)
+			_, *prod = nat(nil).div(nil, *prod, m)
 		}
 	}
 }
