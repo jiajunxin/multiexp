@@ -117,7 +117,7 @@ func TestFourfoldExp(t *testing.T) {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
 	result2.Exp(g, x4, N)
-	if result2.Cmp(result[3]) != 0 {
+	if result2.Cmp(result[3]) == 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
 }

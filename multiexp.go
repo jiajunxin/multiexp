@@ -319,52 +319,6 @@ func FourFoldExp(x, m *Int, y []*Int) []*Int {
 	return fourfoldExpNNMontgomery(xWords, mWords, y)
 }
 
-// FourFoldExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
-// In construction, many panic conditions. Use at your own risk!
-// Use at most 4 threads for now.
-// FourFoldExp is not a cryptographically constant-time operation.
-func FourFoldExpWithPreComputeTableParallel(x, m *Int, y []*Int, pretable *PreTable) []*Int {
-	xWords := x.Bits()
-	if len(xWords) == 0 {
-		return allIntOne(4)
-	}
-	if x.Sign() <= 0 || m.Sign() <= 0 {
-		panic("negative x or m as input for MultiExp")
-	}
-	if len(y)%2 != 0 {
-		panic("MultiExp does not support odd length of y for now!")
-	}
-	for i := range y {
-		if y[i].Sign() <= 0 {
-			panic("negative y[i] as input for MultiExp")
-		}
-	}
-	if len(xWords) == 1 && xWords[0] == 1 {
-		return allIntOne(len(y))
-	}
-
-	// x > 1
-
-	if m == nil {
-		return allIntOne(len(y))
-	}
-	mWords := m.Bits() // m.abs may be nil for m == 0
-	if len(mWords) == 0 {
-		return allIntOne(len(y))
-	}
-	// m > 1
-	// y > 0
-
-	if mWords[0]&1 != 1 {
-		panic("The input modular is not a odd number")
-	}
-	// check if the table is same as the input parameters
-	if pretable.Base.Cmp(x) != 0 || pretable.Modulos.Cmp(m) != 0 {
-		panic("The input table does not match the input")
-	}
-	return fourfoldExpNNMontgomeryWithPreComputeTableParallel(xWords, mWords, y, pretable)
-}
-
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
 // Uses Montgomery representation.
 func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
@@ -429,14 +383,26 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 	yNew[1], yNew[3], cm13 = gcb(yNew[1], yNew[3])
 	yNew[0], yNew[3], cm03 = gcb(yNew[0], yNew[3])
 	yNew[1], yNew[2], cm12 = gcb(yNew[1], yNew[2])
+	fmt.Println("yNew[0] = ", yNew[0].String())
+	fmt.Println("yNew[1] = ", yNew[1].String())
+	fmt.Println("yNew[2] = ", yNew[2].String())
+	fmt.Println("yNew[3] = ", yNew[3].String())
 	//                                                                    0-4	  5     6      7       8     9     10     11    12    13    14
 	z := multimontgomery(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
+	fmt.Println("after multimontgomery")
+	fmt.Println("z[0] = ", z[0].String())
+	fmt.Println("z[1] = ", z[1].String())
+	fmt.Println("z[2] = ", z[2].String())
+	fmt.Println("z[3] = ", z[3].String())
 	// calculate the actual values
 	assembleAndConvert(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
 	assembleAndConvert(&z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords)
 	assembleAndConvert(&z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords)
 	assembleAndConvert(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords)
-
+	fmt.Println("z[0] = ", z[0].String())
+	fmt.Println("z[1] = ", z[1].String())
+	fmt.Println("z[2] = ", z[2].String())
+	fmt.Println("z[3] = ", z[3].String())
 	// // retrive common values for first number
 	// temp = temp.montgomery(z[0], z[4], m, k0, numWords)
 	// z[0], temp = temp, z[0]

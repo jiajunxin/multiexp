@@ -81,13 +81,16 @@ func PreCompute(base, modular *Int, tableSize int) *PreTable {
 	pretable := make([][]nat, tableSize)
 	for i := range pretable {
 		pretable[i] = make([]nat, _W)
+		for j := range pretable[i] {
+			pretable[i][j] = pretable[i][j].make(numWords)
+		}
 	}
 
 	for i := 0; i < tableSize; i++ {
 		for j := 0; j < _W; j++ {
 			// montgomery must have the returned value not same as the input values
 			// we have to use this temp as the middle variable
-			pretable[i][j] = squaredPower
+			copy(pretable[i][j], squaredPower)
 			temp = temp.montgomery(squaredPower, squaredPower, m, k0, numWords)
 			squaredPower, temp = temp, squaredPower
 		}
@@ -95,6 +98,52 @@ func PreCompute(base, modular *Int, tableSize int) *PreTable {
 
 	table.table = pretable
 	return &table
+}
+
+// FourFoldExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
+// In construction, many panic conditions. Use at your own risk!
+// Use at most 4 threads for now.
+// FourFoldExp is not a cryptographically constant-time operation.
+func FourFoldExpWithPreComputeTableParallel(x, m *Int, y []*Int, pretable *PreTable) []*Int {
+	xWords := x.Bits()
+	if len(xWords) == 0 {
+		return allIntOne(4)
+	}
+	if x.Sign() <= 0 || m.Sign() <= 0 {
+		panic("negative x or m as input for MultiExp")
+	}
+	if len(y)%2 != 0 {
+		panic("MultiExp does not support odd length of y for now!")
+	}
+	for i := range y {
+		if y[i].Sign() <= 0 {
+			panic("negative y[i] as input for MultiExp")
+		}
+	}
+	if len(xWords) == 1 && xWords[0] == 1 {
+		return allIntOne(len(y))
+	}
+
+	// x > 1
+
+	if m == nil {
+		return allIntOne(len(y))
+	}
+	mWords := m.Bits() // m.abs may be nil for m == 0
+	if len(mWords) == 0 {
+		return allIntOne(len(y))
+	}
+	// m > 1
+	// y > 0
+
+	if mWords[0]&1 != 1 {
+		panic("The input modular is not a odd number")
+	}
+	// check if the table is same as the input parameters
+	if pretable.Base.Cmp(x) != 0 || pretable.Modulos.Cmp(m) != 0 {
+		panic("The input table does not match the input")
+	}
+	return fourfoldExpNNMontgomeryWithPreComputeTableParallel(xWords, mWords, y, pretable)
 }
 
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
@@ -141,24 +190,9 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	var powers [2]nat
 	powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
 	powers[1] = powers[1].montgomery(x, RR, m, k0, numWords)
-	//fmt.Println("test before fourfold gcb------====================================================================")
-	// Zero round, find common bits of the four values
-	//fmt.Println("test here, len = ", len([]nat{y[0].abs, y[1].abs, y[2].abs, y[3].abs}))
-	// fmt.Println("test before fourfold gcb")
-	// StatforInt(y[0].Bits())
-	// StatforInt(y[1].Bits())
-	// StatforInt(y[2].Bits())
-	// StatforInt(y[3].Bits())
+
 	yNew := fourfoldGcb([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
-	// fmt.Println("test after fourfold gcb")
-	// fmt.Println("------yNew[0]--------")
-	// StatforInt(yNew[0])
-	// StatforInt(yNew[1])
-	// StatforInt(yNew[2])
-	// StatforInt(yNew[3])
-	// fmt.Println("test for the new common bits")
-	// StatforInt(yNew[4])
-	// First round, find common bits of the three values
+
 	var cm012, cm013, cm023, cm123 nat
 	cm012 = threefoldGcb(yNew[:3])
 	cm013 = threefoldGcb([]nat{yNew[0], yNew[1], yNew[3]})
@@ -172,26 +206,10 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	yNew[1], yNew[3], cm13 = gcb(yNew[1], yNew[3])
 	yNew[0], yNew[3], cm03 = gcb(yNew[0], yNew[3])
 	yNew[1], yNew[2], cm12 = gcb(yNew[1], yNew[2])
-	// fmt.Println("test after the bitwise gcb")
-	// fmt.Println("------yNew[0]--------")
-	// StatforInt(yNew[0])
-	// StatforInt(yNew[1])
-	// StatforInt(yNew[2])
-	// StatforInt(yNew[3])
-	// // fmt.Println("test for the new common bits")
-	// // fmt.Println("------cm01--------")
-	// StatforInt(cm01)
-	// StatforInt(cm02)
-	// StatforInt(cm03)
-	// StatforInt(cm13)
 	c1 := make(chan []nat)
 	c2 := make(chan []nat)
 	c3 := make(chan []nat)
 	c4 := make(chan []nat)
-	fmt.Println("yNew[0] = ", yNew[0].String())
-	fmt.Println("yNew[1] = ", yNew[1].String())
-	fmt.Println("yNew[2] = ", yNew[2].String())
-	fmt.Println("yNew[3] = ", yNew[3].String())
 	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, yNew[:4], pretable, c1)
 	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{yNew[4], cm012, cm013, cm023}, pretable, c2)
 	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm123, cm01, cm23, cm02}, pretable, c3)
@@ -212,67 +230,6 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	go assembleAndConvert(&z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords)
 	go assembleAndConvert(&z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords)
 	go assembleAndConvert(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords)
-
-	// // retrive common values for first number
-	// temp = temp.montgomery(z[0], z[4], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[5], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[6], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[7], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[9], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[11], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[13], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// // retrive common values for second number
-	// temp = temp.montgomery(z[1], z[4], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[5], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[6], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[8], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[9], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[12], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[14], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// // retrive common values for third number
-	// temp = temp.montgomery(z[2], z[4], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[5], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[7], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[8], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[10], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[11], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[14], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// // retrive common values for four number
-	// temp = temp.montgomery(z[3], z[4], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[6], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[7], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[8], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[10], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[12], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[13], m, k0, numWords)
-	// z[3], temp = temp, z[3]
 
 	z = z[:4] //the rest are useless now
 
@@ -296,7 +253,7 @@ func assembleAndConvert(prod *nat, set []nat, m nat, k0 Word, numWords int) {
 		temp = temp.montgomery(*prod, set[i], m, k0, numWords)
 
 		*prod, temp = temp, *prod
-		fmt.Println("prod", i, " = ", prod.String())
+		//fmt.Println("prod", i, " = ", prod.String())
 	}
 
 	// one = 1, with equal length to that of m
@@ -305,11 +262,10 @@ func assembleAndConvert(prod *nat, set []nat, m nat, k0 Word, numWords int) {
 	// convert to regular number
 	temp = temp.montgomery(*prod, one, m, k0, numWords)
 	*prod, temp = temp, *prod
-	fmt.Println("prod convert = ", prod.String())
+	//fmt.Println("prod convert = ", prod.String())
 	// One last reduction, just in case.
 	// See golang.org/issue/13907.
 	if prod.cmp(m) >= 0 {
-		fmt.Println("prod.cmp(m) >= 0 , m = ", m.String())
 		// Common case is m has high bit set; in that case,
 		// since zz is the same length as m, there can be just
 		// one multiple of m to remove. Just subtract.
@@ -347,7 +303,6 @@ func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Wo
 			maxLen = len(y[i])
 		}
 	}
-	var counter uint64
 
 	for i := 0; i < maxLen; i++ {
 		for j := 0; j < _W; j++ {
@@ -357,7 +312,6 @@ func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Wo
 					if (y[k][i] & mask) == mask {
 						temp = temp.montgomery(z[k], pretable.table[i][j], m, k0, numWords)
 						z[k], temp = temp, z[k]
-						counter++
 					}
 				}
 			}
@@ -370,7 +324,5 @@ func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Wo
 	duration := time.Now().UTC().Sub(startingTime)
 	fmt.Println("inside multimontgomeryWithPreComputeTableWithChan, len(y) = ", len(y))
 	fmt.Printf("Running multimontgomeryWithPreComputeTableWithChan Takes [%.3f] Seconds \n", duration.Seconds())
-	// fmt.Println("len(y) = ", len(y))
-	fmt.Println("Counter = ", counter)
 	c <- z
 }
