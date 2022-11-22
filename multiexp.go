@@ -383,111 +383,15 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 	yNew[1], yNew[3], cm13 = gcb(yNew[1], yNew[3])
 	yNew[0], yNew[3], cm03 = gcb(yNew[0], yNew[3])
 	yNew[1], yNew[2], cm12 = gcb(yNew[1], yNew[2])
-	fmt.Println("yNew[0] = ", yNew[0].String())
-	fmt.Println("yNew[1] = ", yNew[1].String())
-	fmt.Println("yNew[2] = ", yNew[2].String())
-	fmt.Println("yNew[3] = ", yNew[3].String())
 	//                                                                    0-4	  5     6      7       8     9     10     11    12    13    14
 	z := multimontgomery(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
-	fmt.Println("after multimontgomery")
-	fmt.Println("z[0] = ", z[0].String())
-	fmt.Println("z[1] = ", z[1].String())
-	fmt.Println("z[2] = ", z[2].String())
-	fmt.Println("z[3] = ", z[3].String())
+
 	// calculate the actual values
 	assembleAndConvert(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
 	assembleAndConvert(&z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords)
 	assembleAndConvert(&z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords)
 	assembleAndConvert(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords)
-	fmt.Println("z[0] = ", z[0].String())
-	fmt.Println("z[1] = ", z[1].String())
-	fmt.Println("z[2] = ", z[2].String())
-	fmt.Println("z[3] = ", z[3].String())
-	// // retrive common values for first number
-	// temp = temp.montgomery(z[0], z[4], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[5], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[6], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[7], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[9], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[11], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// temp = temp.montgomery(z[0], z[13], m, k0, numWords)
-	// z[0], temp = temp, z[0]
-	// // retrive common values for second number
-	// temp = temp.montgomery(z[1], z[4], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[5], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[6], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[8], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[9], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[12], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// temp = temp.montgomery(z[1], z[14], m, k0, numWords)
-	// z[1], temp = temp, z[1]
-	// // retrive common values for third number
-	// temp = temp.montgomery(z[2], z[4], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[5], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[7], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[8], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[10], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[11], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// temp = temp.montgomery(z[2], z[14], m, k0, numWords)
-	// z[2], temp = temp, z[2]
-	// // retrive common values for four number
-	// temp = temp.montgomery(z[3], z[4], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[6], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[7], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[8], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[10], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[12], m, k0, numWords)
-	// z[3], temp = temp, z[3]
-	// temp = temp.montgomery(z[3], z[13], m, k0, numWords)
-	// z[3], temp = temp, z[3]
 
-	// z = z[:4] //the rest are useless now
-
-	// // convert to regular number
-	// for i := range z {
-	// 	temp = temp.montgomery(z[i], one, m, k0, numWords)
-	// 	z[i], temp = temp, z[i]
-	// }
-	// for i := range z {
-	// 	// One last reduction, just in case.
-	// 	// See golang.org/issue/13907.
-	// 	if z[i].cmp(m) >= 0 {
-	// 		// Common case is m has high bit set; in that case,
-	// 		// since zz is the same length as m, there can be just
-	// 		// one multiple of m to remove. Just subtract.
-	// 		// We think that the subtract should be sufficient in general,
-	// 		// so do that unconditionally, but double-check,
-	// 		// in case our beliefs are wrong.
-	// 		// The div is not expected to be reached.
-	// 		z[i] = z[i].sub(z[i], m)
-	// 		if z[i].cmp(m) >= 0 {
-	// 			_, z[i] = nat(nil).div(nil, z[i], m)
-	// 		}
-	// 	}
-	// }
 	z = z[:4] //the rest are useless now
 	ret := make([]*Int, 4)
 	for i := range ret {
