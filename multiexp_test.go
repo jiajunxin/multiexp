@@ -23,7 +23,7 @@ func getValidModulus(r io.Reader, max *Int) *Int {
 }
 
 func TestDoubleExp(t *testing.T) {
-	var max big.Int
+	var max Int
 	max.SetInt64(1000000)
 
 	g, err := rand.Int(rand.Reader, &max)
@@ -42,7 +42,7 @@ func TestDoubleExp(t *testing.T) {
 	N := getValidModulus(rand.Reader, &max)
 
 	result := DoubleExp(g, x1, x2, N)
-	var result2 big.Int
+	var result2 Int
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for DoubleExp")
