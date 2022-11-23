@@ -6,10 +6,12 @@ import (
 	"testing"
 )
 
+const numofBits = 20000
+
 func BenchmarkOriginalDoubleExp(b *testing.B) {
 	var max Int
 	max.SetInt64(1)
-	max.Lsh(&max, 20000)
+	max.Lsh(&max, numofBits)
 	g, err := rand.Int(rand.Reader, &max)
 	if err != nil {
 		b.Errorf(err.Error())
@@ -33,7 +35,7 @@ func BenchmarkOriginalDoubleExp(b *testing.B) {
 func BenchmarkDoubleExp(b *testing.B) {
 	var max Int
 	max.SetInt64(1)
-	max.Lsh(&max, 20000)
+	max.Lsh(&max, numofBits)
 	g, err := rand.Int(rand.Reader, &max)
 	if err != nil {
 		b.Errorf(err.Error())
@@ -55,7 +57,7 @@ func BenchmarkDoubleExp(b *testing.B) {
 func BenchmarkOriginalFourfoldExp(b *testing.B) {
 	var max Int
 	max.SetInt64(1)
-	max.Lsh(&max, 20000)
+	max.Lsh(&max, numofBits)
 	g, err := rand.Int(rand.Reader, &max)
 	if err != nil {
 		b.Errorf(err.Error())
@@ -81,7 +83,7 @@ func BenchmarkOriginalFourfoldExp(b *testing.B) {
 func BenchmarkFourfoldExp(b *testing.B) {
 	var max Int
 	max.SetInt64(1)
-	max.Lsh(&max, 20000)
+	max.Lsh(&max, numofBits)
 	g, err := rand.Int(rand.Reader, &max)
 	if err != nil {
 		b.Errorf(err.Error())
