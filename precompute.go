@@ -3,6 +3,7 @@ package multiexp
 import (
 	"fmt"
 	. "math/big"
+	"sync"
 	"time"
 )
 
@@ -226,30 +227,24 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	//z := multimontgomeryWithPreComputeTable(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12), pretable)
 	// calculate the actual values
 
-	cc0 := make(chan nat)
-	cc1 := make(chan nat)
-	cc2 := make(chan nat)
-	cc3 := make(chan nat)
+	var wg sync.WaitGroup
+	wg.Add(4)
+	go assembleAndConvertWithwg(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords, &wg)
+	go assembleAndConvertWithwg(&z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords, &wg)
+	go assembleAndConvertWithwg(&z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords, &wg)
+	go assembleAndConvertWithwg(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords, &wg)
+	wg.Wait()
 
-	go assembleAndConvertWithChan(z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords, cc0)
-	go assembleAndConvertWithChan(z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords, cc1)
-	go assembleAndConvertWithChan(z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords, cc2)
-	go assembleAndConvertWithChan(z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords, cc3)
-	r := make([]nat, 4)
-	r[0] = <-cc0
-	r[1] = <-cc1
-	r[2] = <-cc2
-	r[3] = <-cc3
-
+	z = z[:4]
 	ret := make([]*Int, 4)
 	for i := range ret {
 		ret[i] = new(Int)
 	}
 
 	// normlize and set value
-	for i := range r {
+	for i := range z {
 		z[i].norm()
-		ret[i].SetBits(r[i])
+		ret[i].SetBits(z[i])
 	}
 	return ret
 }
@@ -291,16 +286,16 @@ func assembleAndConvert(prod *nat, set []nat, mm nat, k0 Word, numWords int) {
 	}
 }
 
-func assembleAndConvertWithChan(prod nat, set []nat, mm nat, k0 Word, numWords int, c chan nat) {
+func assembleAndConvertWithwg(prod *nat, set []nat, mm nat, k0 Word, numWords int, wg *sync.WaitGroup) {
 	var temp nat
 	temp = temp.make(numWords)
 	var m nat
 	m = m.make(numWords)
 	copy(m, mm)
 	for i := range set {
-		temp = temp.montgomery(prod, set[i], m, k0, numWords)
+		temp = temp.montgomery(*prod, set[i], m, k0, numWords)
 
-		prod, temp = temp, prod
+		*prod, temp = temp, *prod
 		//fmt.Println("prod", i, " = ", prod.String())
 	}
 
@@ -308,8 +303,8 @@ func assembleAndConvertWithChan(prod nat, set []nat, mm nat, k0 Word, numWords i
 	one := make(nat, numWords)
 	one[0] = 1
 	// convert to regular number
-	temp = temp.montgomery(prod, one, m, k0, numWords)
-	prod, temp = temp, prod
+	temp = temp.montgomery(*prod, one, m, k0, numWords)
+	*prod, temp = temp, *prod
 	//fmt.Println("prod convert = ", prod.String())
 	// One last reduction, just in case.
 	// See golang.org/issue/13907.
@@ -321,12 +316,12 @@ func assembleAndConvertWithChan(prod nat, set []nat, mm nat, k0 Word, numWords i
 		// so do that unconditionally, but double-check,
 		// in case our beliefs are wrong.
 		// The div is not expected to be reached.
-		prod = (prod).sub(prod, m)
+		*prod = (*prod).sub(*prod, m)
 		if prod.cmp(m) >= 0 {
-			_, prod = nat(nil).div(nil, prod, m)
+			_, *prod = nat(nil).div(nil, *prod, m)
 		}
 	}
-	c <- prod
+	wg.Done()
 }
 
 // multimontgomery calculates the modular montgomery exponent with result not normlized
