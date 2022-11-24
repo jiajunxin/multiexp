@@ -1,11 +1,18 @@
 package multiexp
 
 import (
-	"fmt"
 	. "math/big"
 )
 
-//const _W = int(unsafe.Sizeof(big.Word(0)) * 8)
+// degradeToNormalExp handles the conditions this lib do not support or cannot do better than the golang's exp
+func degradeToNormalExp(x, m *Int, y []*Int) []*Int {
+	ret := make([]*Int, len(y))
+	for i := range y {
+		ret[i] = new(Int)
+		ret[i].Exp(x, y[i], m)
+	}
+	return ret
+}
 
 // DoubleExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2.
 // If m == nil or m == 0, z = x**y unless y <= 0 then z = 1. If m != 0, y < 0,
@@ -24,9 +31,7 @@ func DoubleExp(x, y1, y2, m *Int) []*Int {
 		return allIntOne(2)
 	}
 	if x.Sign() <= 0 || y1.Sign() <= 0 || y2.Sign() <= 0 || m.Sign() <= 0 {
-		z1.Exp(x, y2, m)
-		z2.Exp(x, y2, m)
-		return ret
+		return degradeToNormalExp(x, m, []*Int{y1, y2})
 	}
 	if len(xWords) == 1 && xWords[0] == 1 {
 		return allIntOne(2)
@@ -47,37 +52,19 @@ func DoubleExp(x, y1, y2, m *Int) []*Int {
 
 	// x**0 == 1
 	if len(y1Words) == 0 {
-		if len(y2Words) == 0 {
-			z1.SetInt64(1)
-			z2.SetInt64(1)
-			return ret
-		}
-		z1.SetInt64(1)
-		z2.Exp(x, y2, m)
-		return ret
+		return degradeToNormalExp(x, m, []*Int{y1, y2})
 	}
 	if len(y2Words) == 0 {
-		z2.SetInt64(1)
-		z1.Exp(x, y1, m)
-		return ret
+		return degradeToNormalExp(x, m, []*Int{y1, y2})
 	}
 	// y > 0
 
 	// x**1 == x
 	if len(y1Words) == 1 && y1Words[0] == 1 {
-		if len(y2Words) == 1 && y2Words[0] == 1 {
-			nat(z1.Bits()).rem(x.Bits(), m.Bits())
-			nat(z2.Bits()).rem(x.Bits(), m.Bits())
-			return ret
-		}
-		nat(y1Words).rem(x.Bits(), x.Bits())
-		z2.Exp(x, y2, m)
-		return ret
+		return degradeToNormalExp(x, m, []*Int{y1, y2})
 	}
 	if len(y2Words) == 1 && y2Words[0] == 1 {
-		nat(y2Words).rem(x.Bits(), m.Bits())
-		z1.Exp(x, y1, m)
-		return ret
+		return degradeToNormalExp(x, m, []*Int{y1, y2})
 	}
 	// y > 1
 
@@ -287,14 +274,14 @@ func FourFoldExp(x, m *Int, y []*Int) []*Int {
 		return allIntOne(4)
 	}
 	if x.Sign() <= 0 || m.Sign() <= 0 {
-		panic("negative x or m as input for MultiExp")
+		return degradeToNormalExp(x, m, y)
 	}
 	if len(y)%2 != 0 {
-		panic("MultiExp does not support odd length of y for now!")
+		return degradeToNormalExp(x, m, y)
 	}
 	for i := range y {
 		if y[i].Sign() <= 0 {
-			panic("negative y[i] as input for MultiExp")
+			return degradeToNormalExp(x, m, y)
 		}
 	}
 	if len(xWords) == 1 && xWords[0] == 1 {
@@ -314,7 +301,7 @@ func FourFoldExp(x, m *Int, y []*Int) []*Int {
 	// y > 0
 
 	if mWords[0]&1 != 1 {
-		panic("The input modular is not a odd number")
+		return degradeToNormalExp(x, m, y)
 	}
 	return fourfoldExpNNMontgomery(xWords, mWords, y)
 }
@@ -402,32 +389,6 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 	for i := range z {
 		z[i].norm()
 		ret[i].SetBits(z[i])
-	}
-	return ret
-}
-
-// GetWidth returns the width of uint in this system
-func GetWidth() int {
-	return _W
-}
-
-func StatforInt(input nat) {
-	fmt.Println("Nat len of input = ", len(input))
-	var counter uint64
-	for i := range input {
-		counter += Bit1Counter(input[i])
-	}
-	fmt.Println("Input has bit '1' = ", counter)
-}
-
-func Bit1Counter(input Word) uint64 {
-	var ret uint64
-	var mask uint
-	for i := 0; i < 32; i++ {
-		mask = uint(1 << i)
-		if (uint(input) & mask) == mask {
-			ret++
-		}
 	}
 	return ret
 }
