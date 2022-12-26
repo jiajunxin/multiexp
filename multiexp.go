@@ -4,12 +4,11 @@ import (
 	. "math/big"
 )
 
-// degradeToNormalExp handles the conditions this lib do not support or cannot do better than the golang's exp
-func degradeToNormalExp(x, m *Int, y []*Int) []*Int {
-	ret := make([]*Int, len(y))
-	for i := range y {
-		ret[i] = new(Int)
-		ret[i].Exp(x, y[i], m)
+// defaultExp handles the conditions this lib do not support or cannot do better than the golang's exp
+func defaultExp(x, m *Int, yList []*Int) []*Int {
+	ret := make([]*Int, len(yList))
+	for i := range yList {
+		ret[i] = new(Int).Exp(x, yList[i], m)
 	}
 	return ret
 }
@@ -20,76 +19,61 @@ func degradeToNormalExp(x, m *Int, y []*Int) []*Int {
 //
 // DoubleExp is not a cryptographically constant-time operation.
 func DoubleExp(x, y1, y2, m *Int) []*Int {
-	// See Knuth, volume 2, section 4.6.3.
-	var z1, z2 Int
-	ret := make([]*Int, 2)
-	ret[0] = &z1
-	ret[1] = &z2
-
 	xWords := x.Bits()
 	if len(xWords) == 0 {
-		return allIntOne(2)
+		return ones(2)
+	}
+	if m == nil {
+		return ones(2)
 	}
 	if x.Sign() <= 0 || y1.Sign() <= 0 || y2.Sign() <= 0 || m.Sign() <= 0 {
-		return degradeToNormalExp(x, m, []*Int{y1, y2})
+		return defaultExp(x, m, []*Int{y1, y2})
 	}
-	if len(xWords) == 1 && xWords[0] == 1 {
-		return allIntOne(2)
+	if len(xWords) <= 1 {
+		return ones(2)
 	}
-
 	// x > 1
 
-	if m == nil {
-		return allIntOne(2)
-	}
 	mWords := m.Bits() // m.abs may be nil for m == 0
 	if len(mWords) == 0 {
-		return allIntOne(2)
+		return ones(2)
 	}
 	// m > 1
+
 	y1Words := y1.Bits()
 	y2Words := y2.Bits()
-
-	// x**0 == 1
-	if len(y1Words) == 0 {
-		return degradeToNormalExp(x, m, []*Int{y1, y2})
-	}
-	if len(y2Words) == 0 {
-		return degradeToNormalExp(x, m, []*Int{y1, y2})
-	}
-	// y > 0
-
-	// x**1 == x
-	if len(y1Words) == 1 && y1Words[0] == 1 {
-		return degradeToNormalExp(x, m, []*Int{y1, y2})
-	}
-	if len(y2Words) == 1 && y2Words[0] == 1 {
-		return degradeToNormalExp(x, m, []*Int{y1, y2})
+	// x**0 == 1 or x**1 == x
+	if len(y1Words) <= 1 || len(y2Words) <= 1 {
+		return defaultExp(x, m, []*Int{y1, y2})
 	}
 	// y > 1
 
-	if mWords[0]&1 == 1 {
-		return doubleexpNNMontgomery(xWords, y1Words, y2Words, mWords)
+	// only consider odd number m
+	if mWords[0] == 1 {
+		return doubleExpNNMontgomery(xWords, y1Words, y2Words, mWords)
 	}
 
-	nat(z1.Bits()).rem(x.Bits(), m.Bits())
-	nat(z2.Bits()).rem(x.Bits(), m.Bits())
-	return ret
+	// if m is even
+	results := make([]*Int, 2)
+	for idx := range results {
+		results[idx] = new(Int)
+		nat(results[idx].Bits()).rem(xWords, mWords)
+	}
+	return results
 }
 
-// allIntOne inputs a slice length and returns a slice of *Int, with all values "1"
-func allIntOne(length int) []*Int {
+// ones inputs a slice length and returns a slice of *Int, with all values "1"
+func ones(length int) []*Int {
 	ret := make([]*Int, length)
 	for i := range ret {
-		ret[i] = new(Int)
-		ret[i].SetInt64(1)
+		ret[i] = new(Int).SetInt64(1)
 	}
 	return ret
 }
 
-// doubleexpNNMontgomery calculates x**y1 mod m and x**y2 mod m
+// doubleExpNNMontgomery calculates x**y1 mod m and x**y2 mod m
 // Uses Montgomery representation.
-func doubleexpNNMontgomery(x, y1, y2, m nat) []*Int {
+func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
 	numWords := len(m)
 
 	// We want the lengths of x and m to be equal.
@@ -104,14 +88,14 @@ func doubleexpNNMontgomery(x, y1, y2, m nat) []*Int {
 		x = rr
 	}
 
-	// Ideally the precomputations would be performed outside, and reused
+	// Ideally the pre-computations would be performed outside, and reused
 	// k0 = -m**-1 mod 2**_W. Algorithm from: Dumas, J.G. "On Newton–Raphson
 	// Iteration for Multiplicative Inverses Modulo Prime Powers".
 	k0 := 2 - m[0]
 	t := m[0] - 1
 	for i := 1; i < _W; i <<= 1 {
 		t *= t
-		k0 *= (t + 1)
+		k0 *= t + 1
 	}
 	k0 = -k0
 
@@ -130,15 +114,17 @@ func doubleexpNNMontgomery(x, y1, y2, m nat) []*Int {
 	one[0] = 1
 
 	// powers[i] contains x^i
-	var powers [2]nat
-	powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
-	powers[1] = powers[1].montgomery(x, RR, m, k0, numWords)
+	//var powers [2]nat
+	//powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
+	//powers[1] = powers[1].montgomery(x, RR, m, k0, numWords)
+	var power0, power1 nat
+	power0 = power0.montgomery(one, RR, m, k0, numWords)
+	power1 = power1.montgomery(x, RR, m, k0, numWords)
 
 	y1New, y2New, y3 := gcb(y1, y2)
-	z := multimontgomery(RR, m, powers[0], powers[1], k0, numWords, []nat{y1New, y2New, y3})
+	z := multiMontgomery(m, power0, power1, k0, numWords, []nat{y1New, y2New, y3})
 	// calculate z1 and z2
-	var temp nat
-	temp = temp.make(numWords)
+	temp := nat(nil).make(numWords)
 	temp = temp.montgomery(z[0], z[2], m, k0, numWords)
 	z[0], temp = temp, z[0]
 	temp = temp.montgomery(z[1], z[2], m, k0, numWords)
@@ -172,7 +158,7 @@ func doubleexpNNMontgomery(x, y1, y2, m nat) []*Int {
 		ret[i] = new(Int)
 	}
 
-	// normlize and set value
+	// normalize and set value
 	for i := range z {
 		z[i].norm()
 		ret[i].SetBits(z[i])
@@ -180,34 +166,34 @@ func doubleexpNNMontgomery(x, y1, y2, m nat) []*Int {
 	return ret
 }
 
-// multimontgomery calculates the modular montgomery exponent with result not normlized
-func multimontgomery(RR, m, power0, power1 nat, k0 Word, numWords int, y []nat) []nat {
+// multiMontgomery calculates the modular montgomery exponent with result not normalized
+func multiMontgomery(m, power0, power1 nat, k0 Word, numWords int, yList []nat) []nat {
 	// initialize each value to be 1 (Montgomery 1)
-	z := make([]nat, len(y))
+	z := make([]nat, len(yList))
 	for i := range z {
 		z[i] = z[i].make(numWords)
 		copy(z[i], power0)
 	}
 
-	var squaredPower, temp nat
+	var squaredPower nat
 	squaredPower = squaredPower.make(numWords)
-	temp = temp.make(numWords)
 	copy(squaredPower, power1)
 	//	fmt.Println("squaredPower = ", squaredPower.String())
 
 	maxLen := 1
-	for i := range y {
-		if len(y[i]) > maxLen {
-			maxLen = len(y[i])
+	for i := range yList {
+		if len(yList[i]) > maxLen {
+			maxLen = len(yList[i])
 		}
 	}
 
+	temp := nat(nil).make(numWords)
 	for i := 0; i < maxLen; i++ {
 		for j := 0; j < _W; j++ {
 			mask := Word(1 << j)
-			for k := range y {
-				if len(y[k]) > i {
-					if (y[k][i] & mask) == mask {
+			for k := range yList {
+				if len(yList[k]) > i {
+					if (yList[k][i] & mask) == mask {
 						temp = temp.montgomery(z[k], squaredPower, m, k0, numWords)
 						z[k], temp = temp, z[k]
 					}
@@ -222,8 +208,8 @@ func multimontgomery(RR, m, power0, power1 nat, k0 Word, numWords int, y []nat) 
 	return z
 }
 
-// multimontgomery calculates the modular montgomery exponent with result not normlized
-func multimontgomeryWithPreComputeTable(RR, m, power0, power1 nat, k0 Word, numWords int, y []nat, pretable *PreTable) []nat {
+// multiMontgomeryWithPreComputeTable calculates the modular montgomery exponent with result not normalized
+func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords int, y []nat, pretable *PreTable) []nat {
 	// initialize each value to be 1 (Montgomery 1)
 	z := make([]nat, len(y))
 	for i := range z {
@@ -264,44 +250,44 @@ func multimontgomeryWithPreComputeTable(RR, m, power0, power1 nat, k0 Word, numW
 	return z
 }
 
-// FourFoldExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
+// FourfoldExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
 // In construction, many panic conditions. Use at your own risk!
 //
-// FourFoldExp is not a cryptographically constant-time operation.
-func FourFoldExp(x, m *Int, y []*Int) []*Int {
+// FourfoldExp is not a cryptographically constant-time operation.
+func FourfoldExp(x, m *Int, y []*Int) []*Int {
 	xWords := x.Bits()
 	if len(xWords) == 0 {
-		return allIntOne(4)
+		return ones(4)
 	}
 	if x.Sign() <= 0 || m.Sign() <= 0 {
-		return degradeToNormalExp(x, m, y)
+		return defaultExp(x, m, y)
 	}
 	if len(y)%2 != 0 {
-		return degradeToNormalExp(x, m, y)
+		return defaultExp(x, m, y)
 	}
 	for i := range y {
 		if y[i].Sign() <= 0 {
-			return degradeToNormalExp(x, m, y)
+			return defaultExp(x, m, y)
 		}
 	}
 	if len(xWords) == 1 && xWords[0] == 1 {
-		return allIntOne(len(y))
+		return ones(len(y))
 	}
 
 	// x > 1
 
 	if m == nil {
-		return allIntOne(len(y))
+		return ones(len(y))
 	}
 	mWords := m.Bits() // m.abs may be nil for m == 0
 	if len(mWords) == 0 {
-		return allIntOne(len(y))
+		return ones(len(y))
 	}
 	// m > 1
 	// y > 0
 
 	if mWords[0]&1 != 1 {
-		return degradeToNormalExp(x, m, y)
+		return defaultExp(x, m, y)
 	}
 	return fourfoldExpNNMontgomery(xWords, mWords, y)
 }
@@ -323,14 +309,14 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 		x = rr
 	}
 
-	// Ideally the precomputations would be performed outside, and reused
+	// Ideally the pre-computations would be performed outside, and reused
 	// k0 = -m**-1 mod 2**_W. Algorithm from: Dumas, J.G. "On Newton–Raphson
 	// Iteration for Multiplicative Inverses Modulo Prime Powers".
 	k0 := 2 - m[0]
 	t := m[0] - 1
 	for i := 1; i < _W; i <<= 1 {
 		t *= t
-		k0 *= (t + 1)
+		k0 *= t + 1
 	}
 	k0 = -k0
 
@@ -355,23 +341,23 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 
 	// Zero round, find common bits of the four values
 	//fmt.Println("test here, len = ", len([]nat{y[0].abs, y[1].abs, y[2].abs, y[3].abs}))
-	yNew := fourfoldGcb([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
+	yNewList := fourfoldGcb([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
 	// First round, find common bits of the three values
 	var cm012, cm013, cm023, cm123 nat
-	cm012 = threefoldGcb(yNew[:3])
-	cm013 = threefoldGcb([]nat{yNew[0], yNew[1], yNew[3]})
-	cm023 = threefoldGcb([]nat{yNew[0], yNew[2], yNew[3]})
-	cm123 = threefoldGcb(yNew[1:4])
+	cm012 = threefoldGcb(yNewList[:3])
+	cm013 = threefoldGcb([]nat{yNewList[0], yNewList[1], yNewList[3]})
+	cm023 = threefoldGcb([]nat{yNewList[0], yNewList[2], yNewList[3]})
+	cm123 = threefoldGcb(yNewList[1:4])
 
 	var cm01, cm23, cm02, cm13, cm03, cm12 nat
-	yNew[0], yNew[1], cm01 = gcb(yNew[0], yNew[1])
-	yNew[2], yNew[3], cm23 = gcb(yNew[2], yNew[3])
-	yNew[0], yNew[2], cm02 = gcb(yNew[0], yNew[2])
-	yNew[1], yNew[3], cm13 = gcb(yNew[1], yNew[3])
-	yNew[0], yNew[3], cm03 = gcb(yNew[0], yNew[3])
-	yNew[1], yNew[2], cm12 = gcb(yNew[1], yNew[2])
+	yNewList[0], yNewList[1], cm01 = gcb(yNewList[0], yNewList[1])
+	yNewList[2], yNewList[3], cm23 = gcb(yNewList[2], yNewList[3])
+	yNewList[0], yNewList[2], cm02 = gcb(yNewList[0], yNewList[2])
+	yNewList[1], yNewList[3], cm13 = gcb(yNewList[1], yNewList[3])
+	yNewList[0], yNewList[3], cm03 = gcb(yNewList[0], yNewList[3])
+	yNewList[1], yNewList[2], cm12 = gcb(yNewList[1], yNewList[2])
 	//                                                                    0-4	  5     6      7       8     9     10     11    12    13    14
-	z := multimontgomery(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
+	z := multiMontgomery(m, powers[0], powers[1], k0, numWords, append(yNewList, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
 
 	// calculate the actual values
 	assembleAndConvert(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
@@ -385,7 +371,7 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 		ret[i] = new(Int)
 	}
 
-	// normlize and set value
+	// normalize and set value
 	for i := range z {
 		z[i].norm()
 		ret[i].SetBits(z[i])

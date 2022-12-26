@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	. "math/big"
 	"testing"
+
+	. "math/big"
 )
 
 func getValidModulus(r io.Reader, max *Int) *Int {
@@ -79,7 +80,7 @@ func TestFourfoldExp(t *testing.T) {
 	}
 	N := getValidModulus(rand.Reader, &max)
 
-	result := FourFoldExp(g, N, []*Int{x1, x2, x3, x4})
+	result := FourfoldExp(g, N, []*Int{x1, x2, x3, x4})
 	var result2 Int
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
@@ -103,7 +104,7 @@ func TestFourfoldExp(t *testing.T) {
 	x3.SetInt64(4000000)
 	x4.SetInt64(5000000)
 	N.SetInt64(2000001)
-	result = FourFoldExp(g, N, []*Int{x1, x2, x3, x4})
+	result = FourfoldExp(g, N, []*Int{x1, x2, x3, x4})
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")

@@ -2,9 +2,10 @@ package multiexp
 
 import (
 	"fmt"
-	. "math/big"
 	"sync"
 	"time"
+
+	. "math/big"
 )
 
 type PreTable struct {
@@ -53,7 +54,7 @@ func PreCompute(base, modular *Int, tableSize int) *PreTable {
 	t := m[0] - 1
 	for i := 1; i < _W; i <<= 1 {
 		t *= t
-		k0 *= (t + 1)
+		k0 *= t + 1
 	}
 	k0 = -k0
 
@@ -101,14 +102,14 @@ func PreCompute(base, modular *Int, tableSize int) *PreTable {
 	return &table
 }
 
-// FourFoldExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
+// FourfoldExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
 // In construction, many panic conditions. Use at your own risk!
 // Use at most 4 threads for now.
-// FourFoldExp is not a cryptographically constant-time operation.
+// FourfoldExp is not a cryptographically constant-time operation.
 func FourFoldExpWithPreComputeTableParallel(x, m *Int, y []*Int, pretable *PreTable) []*Int {
 	xWords := x.Bits()
 	if len(xWords) == 0 {
-		return allIntOne(4)
+		return ones(4)
 	}
 	if x.Sign() <= 0 || m.Sign() <= 0 {
 		panic("negative x or m as input for MultiExp")
@@ -122,17 +123,17 @@ func FourFoldExpWithPreComputeTableParallel(x, m *Int, y []*Int, pretable *PreTa
 		}
 	}
 	if len(xWords) == 1 && xWords[0] == 1 {
-		return allIntOne(len(y))
+		return ones(len(y))
 	}
 
 	// x > 1
 
 	if m == nil {
-		return allIntOne(len(y))
+		return ones(len(y))
 	}
 	mWords := m.Bits() // m.abs may be nil for m == 0
 	if len(mWords) == 0 {
-		return allIntOne(len(y))
+		return ones(len(y))
 	}
 	// m > 1
 	// y > 0
@@ -171,7 +172,7 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	t := m[0] - 1
 	for i := 1; i < _W; i <<= 1 {
 		t *= t
-		k0 *= (t + 1)
+		k0 *= t + 1
 	}
 	k0 = -k0
 
@@ -211,10 +212,10 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	c1 := make(chan []nat)
 	c2 := make(chan []nat)
 	c3 := make(chan []nat)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, yNew[:4], pretable, c0)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{yNew[4], cm012, cm013, cm023}, pretable, c1)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm123, cm01, cm23, cm02}, pretable, c2)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm13, cm03, cm12}, pretable, c3)
+	go multiMontgomeryWithPreComputeTableWithChan(m, powers[0], powers[1], k0, numWords, yNew[:4], pretable, c0)
+	go multiMontgomeryWithPreComputeTableWithChan(m, powers[0], powers[1], k0, numWords, []nat{yNew[4], cm012, cm013, cm023}, pretable, c1)
+	go multiMontgomeryWithPreComputeTableWithChan(m, powers[0], powers[1], k0, numWords, []nat{cm123, cm01, cm23, cm02}, pretable, c2)
+	go multiMontgomeryWithPreComputeTableWithChan(m, powers[0], powers[1], k0, numWords, []nat{cm13, cm03, cm12}, pretable, c3)
 
 	z1 := <-c0
 	z2 := <-c1
@@ -224,7 +225,7 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	z = append(z, z3...)
 	z = append(z, z4...)
 	//                                                                    0-4	  5     6      7       8     9     10     11    12    13    14
-	//z := multimontgomeryWithPreComputeTable(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12), pretable)
+	//z := multiMontgomeryWithPreComputeTable(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12), pretable)
 	// calculate the actual values
 
 	var wg sync.WaitGroup
@@ -324,8 +325,8 @@ func assembleAndConvertWithwg(prod *nat, set []nat, mm nat, k0 Word, numWords in
 	wg.Done()
 }
 
-// multimontgomery calculates the modular montgomery exponent with result not normlized
-func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Word, numWords int, y []nat, pretable *PreTable, c chan []nat) {
+// multiMontgomeryWithPreComputeTableWithChan calculates the modular montgomery exponent with result not normlized
+func multiMontgomeryWithPreComputeTableWithChan(m, power0, power1 nat, k0 Word, numWords int, y []nat, pretable *PreTable, c chan []nat) {
 	startingTime := time.Now().UTC()
 
 	// initialize each value to be 1 (Montgomery 1)
@@ -366,7 +367,7 @@ func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Wo
 		}
 	}
 	duration := time.Now().UTC().Sub(startingTime)
-	fmt.Println("inside multimontgomeryWithPreComputeTableWithChan, len(y) = ", len(y))
-	fmt.Printf("Running multimontgomeryWithPreComputeTableWithChan Takes [%.3f] Seconds \n", duration.Seconds())
+	fmt.Println("inside multiMontgomeryWithPreComputeTableWithChan, len(y) = ", len(y))
+	fmt.Printf("Running multiMontgomeryWithPreComputeTableWithChan Takes [%.3f] Seconds \n", duration.Seconds())
 	c <- z
 }

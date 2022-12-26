@@ -1,2 +1,3 @@
-# multiexp
-Provides exponentation function for big integers with fast speed.
+# Multi-EXP
+
+Fast big-integer exponentiation functions.
