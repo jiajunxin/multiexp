@@ -12,16 +12,6 @@ func init() {
 	}
 }
 
-// defaultExp uses the default Exp function of big int to handle the edge cases that cannot benefit from this library
-// in terms of performance
-func defaultExp(x, m *Int, yList []*Int) []*Int {
-	ret := make([]*Int, len(yList))
-	for i := range yList {
-		ret[i] = new(Int).Exp(x, yList[i], m)
-	}
-	return ret
-}
-
 // DoubleExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2.
 // If m == nil or m == 0, z = x**y unless y <= 0 then z = 1. If m != 0, y < 0,
 // and x and m are not relatively prime, z is unchanged and nil is returned.
@@ -80,44 +70,20 @@ func ones(length int) []*Int {
 	return ret
 }
 
+// defaultExp uses the default Exp function of big int to handle the edge cases that cannot benefit from this library
+// in terms of performance
+func defaultExp(x, m *Int, yList []*Int) []*Int {
+	ret := make([]*Int, len(yList))
+	for i := range yList {
+		ret[i] = new(Int).Exp(x, yList[i], m)
+	}
+	return ret
+}
+
 // doubleExpNNMontgomery calculates x**y1 mod m and x**y2 mod m
 // Uses Montgomery representation.
 func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
-	numWords := len(m)
-
-	// We want the lengths of x and m to be equal.
-	// It is OK if x >= m as long as len(x) == len(m).
-	if len(x) > numWords {
-		_, x = nat(nil).div(nil, x, m)
-		// Note: now len(x) <= numWords, not guaranteed ==.
-	}
-	if len(x) < numWords {
-		rr := make(nat, numWords)
-		copy(rr, x)
-		x = rr
-	}
-
-	// Ideally the pre-computations would be performed outside, and reused
-	// k0 = -m**-1 mod 2**_W. Algorithm from: Dumas, J.G. "On Newton–Raphson
-	// Iteration for Multiplicative Inverses Modulo Prime Powers".
-	k0 := 2 - m[0]
-	t := m[0] - 1
-	for i := 1; i < _W; i <<= 1 {
-		t *= t
-		k0 *= t + 1
-	}
-	k0 = -k0
-
-	// RR = 2**(2*_W*len(m)) mod m
-	RR := nat(nil).setWord(1)
-	zz1 := nat(nil).shl(RR, uint(2*numWords*_W))
-	_, RR = nat(nil).div(RR, zz1, m)
-	if len(RR) < numWords {
-		zz1 = zz1.make(numWords)
-		copy(zz1, RR)
-		RR = zz1
-	}
-
+	xx, RR, k0, numWords := montgomerySetup(x, m)
 	// one = 1, with equal length to that of m
 	one := make(nat, numWords)
 	one[0] = 1
@@ -126,7 +92,7 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
 	// power0 = x**0
 	power0 = power0.montgomery(one, RR, m, k0, numWords)
 	// power1 = x**1
-	power1 = power1.montgomery(x, RR, m, k0, numWords)
+	power1 = power1.montgomery(xx, RR, m, k0, numWords)
 
 	y1Extra, y2Extra, commonBits := gcw(y1, y2)
 	mmValues := multiMontgomery(m, power0, power1, k0, numWords, []nat{y1Extra, y2Extra, commonBits})
@@ -151,7 +117,7 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
 			// Common case is m has high bit set; in that case,
 			// since zz is the same length as m, there can be just
 			// one multiple of m to remove. Just subtract.
-			// We think that the subtract should be sufficient in general,
+			// We think that the subtraction should be sufficient in general,
 			// so do that unconditionally, but double-check,
 			// in case our beliefs are wrong.
 			// The div is not expected to be reached.
@@ -166,6 +132,45 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
 	}
 
 	return ret
+}
+
+func montgomerySetup(x, m nat) (xx, RR nat, k0 Word, numWords int) {
+	numWords = len(m)
+	xx = x
+
+	// We want the lengths of x and m to be equal.
+	// It is OK if x >= m as long as len(x) == len(m).
+	if len(x) > numWords {
+		_, x = nat(nil).div(nil, x, m)
+		// Note: now len(x) <= numWords, not guaranteed ==.
+	}
+	if len(x) < numWords {
+		rr := make(nat, numWords)
+		copy(rr, x)
+		x = rr
+	}
+
+	// Ideally the pre-computations would be performed outside, and reused
+	// k0 = -m**-1 mod 2**_W. Algorithm from: Dumas, J.G. "On Newton–Raphson
+	// Iteration for Multiplicative Inverses Modulo Prime Powers".
+	k0 = 2 - m[0]
+	t := m[0] - 1
+	for i := 1; i < _W; i <<= 1 {
+		t *= t
+		k0 *= t + 1
+	}
+	k0 = -k0
+
+	// RR = 2**(2*_W*len(m)) mod m
+	RR = nat(nil).setWord(1)
+	zz1 := nat(nil).shl(RR, uint(2*numWords*_W))
+	_, RR = nat(nil).div(RR, zz1, m)
+	if len(RR) < numWords {
+		zz1 = zz1.make(numWords)
+		copy(zz1, RR)
+		RR = zz1
+	}
+	return
 }
 
 // multiMontgomery calculates the modular montgomery exponent with result not normalized
@@ -212,7 +217,7 @@ func multiMontgomery(m, power0, power1 nat, k0 Word, numWords int, yList []nat) 
 }
 
 // multiMontgomeryWithPreComputeTable calculates the modular montgomery exponent with result not normalized
-func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords int, yList []nat, pretable *PreTable) []nat {
+func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords int, yList []nat, preTable *PreTable) []nat {
 	// initialize each value to be 1 (Montgomery 1)
 	z := make([]nat, len(yList))
 	for i := range z {
@@ -242,7 +247,7 @@ func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords
 				if (yList[k][i] & masks[j]) != masks[j] {
 					continue
 				}
-				temp = temp.montgomery(z[k], pretable.table[i][j], m, k0, numWords)
+				temp = temp.montgomery(z[k], preTable.table[i][j], m, k0, numWords)
 				z[k], temp = temp, z[k]
 			}
 			// // montgomery must have the returned value not same as the input values
@@ -299,40 +304,7 @@ func FourfoldExp(x, m *Int, y []*Int) []*Int {
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
 // Uses Montgomery representation.
 func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
-	numWords := len(m)
-
-	// We want the lengths of x and m to be equal.
-	// It is OK if x >= m as long as len(x) == len(m).
-	if len(x) > numWords {
-		_, x = nat(nil).div(nil, x, m)
-		// Note: now len(x) <= numWords, not guaranteed ==.
-	}
-	if len(x) < numWords {
-		rr := make(nat, numWords)
-		copy(rr, x)
-		x = rr
-	}
-
-	// Ideally the pre-computations would be performed outside, and reused
-	// k0 = -m**-1 mod 2**_W. Algorithm from: Dumas, J.G. "On Newton–Raphson
-	// Iteration for Multiplicative Inverses Modulo Prime Powers".
-	k0 := 2 - m[0]
-	t := m[0] - 1
-	for i := 1; i < _W; i <<= 1 {
-		t *= t
-		k0 *= t + 1
-	}
-	k0 = -k0
-
-	// RR = 2**(2*_W*len(m)) mod m
-	RR := nat(nil).setWord(1)
-	zz1 := nat(nil).shl(RR, uint(2*numWords*_W))
-	_, RR = nat(nil).div(RR, zz1, m)
-	if len(RR) < numWords {
-		zz1 = zz1.make(numWords)
-		copy(zz1, RR)
-		RR = zz1
-	}
+	xx, RR, k0, numWords := montgomerySetup(x, m)
 
 	// one = 1, with equal length to that of m
 	one := make(nat, numWords)
@@ -341,7 +313,7 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 	// powers[i] contains x^i
 	var powers [2]nat
 	powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
-	powers[1] = powers[1].montgomery(x, RR, m, k0, numWords)
+	powers[1] = powers[1].montgomery(xx, RR, m, k0, numWords)
 
 	// Zero round, find common bits of the four values
 	//fmt.Println("test here, len = ", len([]nat{y[0].abs, y[1].abs, y[2].abs, y[3].abs}))
@@ -370,15 +342,12 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 	assembleAndConvert(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords)
 
 	z = z[:4] //the rest are useless now
-	ret := make([]*Int, 4)
-	for i := range ret {
-		ret[i] = new(Int)
-	}
 
+	ret := make([]*Int, 4)
 	// normalize and set value
 	for i := range z {
 		z[i].norm()
-		ret[i].SetBits(z[i])
+		ret[i] = new(Int).SetBits(z[i])
 	}
 	return ret
 }

@@ -151,47 +151,14 @@ func FourfoldExpWithPreComputeTableParallel(x, m *Int, y []*Int, preTable *PreTa
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
 // Uses Montgomery representation.
 func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, preTable *PreTable) []*Int {
-	numWords := len(m)
-
-	// We want the lengths of x and m to be equal.
-	// It is OK if x >= m as long as len(x) == len(m).
-	if len(x) > numWords {
-		_, x = nat(nil).div(nil, x, m)
-		// Note: now len(x) <= numWords, not guaranteed ==.
-	}
-	if len(x) < numWords {
-		rr := make(nat, numWords)
-		copy(rr, x)
-		x = rr
-	}
-
-	// Ideally the pre-computations would be performed outside, and reused
-	// k0 = -m**-1 mod 2**_W. Algorithm from: Dumas, J.G. "On Newton–Raphson
-	// Iteration for Multiplicative Inverses Modulo Prime Powers".
-	k0 := 2 - m[0]
-	t := m[0] - 1
-	for i := 1; i < _W; i <<= 1 {
-		t *= t
-		k0 *= t + 1
-	}
-	k0 = -k0
-
-	// RR = 2**(2*_W*len(m)) mod m
-	RR := nat(nil).setWord(1)
-	zz1 := nat(nil).shl(RR, uint(2*numWords*_W))
-	_, RR = nat(nil).div(RR, zz1, m)
-	if len(RR) < numWords {
-		zz1 = zz1.make(numWords)
-		copy(zz1, RR)
-		RR = zz1
-	}
+	xx, RR, k0, numWords := montgomerySetup(x, m)
 	// one = 1, with equal length to that of m
 	one := make(nat, numWords)
 	one[0] = 1
 	// powers[i] contains x^i
 	var powers [2]nat
 	powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
-	powers[1] = powers[1].montgomery(x, RR, m, k0, numWords)
+	powers[1] = powers[1].montgomery(xx, RR, m, k0, numWords)
 
 	yNew := fourfoldGCW([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
 
@@ -237,15 +204,12 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, preT
 	wg.Wait()
 
 	z = z[:4]
-	ret := make([]*Int, 4)
-	for i := range ret {
-		ret[i] = new(Int)
-	}
 
+	ret := make([]*Int, 4)
 	// normalize and set value
 	for i := range z {
 		z[i].norm()
-		ret[i].SetBits(z[i])
+		ret[i] = new(Int).SetBits(z[i])
 	}
 	return ret
 }
