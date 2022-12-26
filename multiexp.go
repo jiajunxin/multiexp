@@ -1,10 +1,10 @@
 package multiexp
 
 import (
-	. "math/big"
+	"math/big"
 )
 
-var masks = [_W]Word{}
+var masks = [_W]big.Word{}
 
 func init() {
 	for i := 0; i < _W; i++ {
@@ -17,7 +17,7 @@ func init() {
 // and x and m are not relatively prime, z is unchanged and nil is returned.
 //
 // DoubleExp is not a cryptographically constant-time operation.
-func DoubleExp(x, y1, y2, m *Int) []*Int {
+func DoubleExp(x, y1, y2, m *big.Int) []*big.Int {
 	xWords := x.Bits()
 	if len(xWords) == 0 {
 		return ones(2)
@@ -26,7 +26,7 @@ func DoubleExp(x, y1, y2, m *Int) []*Int {
 		return ones(2)
 	}
 	if x.Sign() <= 0 || y1.Sign() <= 0 || y2.Sign() <= 0 || m.Sign() <= 0 {
-		return defaultExp(x, m, []*Int{y1, y2})
+		return defaultExp(x, m, []*big.Int{y1, y2})
 	}
 	if len(xWords) == 0 || (len(xWords) == 1 && xWords[0] <= 1) {
 		return ones(2)
@@ -43,7 +43,7 @@ func DoubleExp(x, y1, y2, m *Int) []*Int {
 	// x**0 == 1 or x**1 == x
 	if len(y1Words) == 0 || (len(y1Words) == 1 && y1Words[0] <= 1) ||
 		len(y2Words) == 0 || (len(y2Words) == 1 && y2Words[0] <= 1) {
-		return defaultExp(x, m, []*Int{y1, y2})
+		return defaultExp(x, m, []*big.Int{y1, y2})
 	}
 	// y > 1
 
@@ -53,36 +53,36 @@ func DoubleExp(x, y1, y2, m *Int) []*Int {
 	}
 
 	// if m is even
-	results := make([]*Int, 2)
+	results := make([]*big.Int, 2)
 	for idx := range results {
-		results[idx] = new(Int)
+		results[idx] = new(big.Int)
 		nat(results[idx].Bits()).rem(xWords, mWords)
 	}
 	return results
 }
 
 // ones inputs a slice length and returns a slice of *Int, with all values "1"
-func ones(length int) []*Int {
-	ret := make([]*Int, length)
+func ones(length int) []*big.Int {
+	ret := make([]*big.Int, length)
 	for i := range ret {
-		ret[i] = new(Int).SetInt64(1)
+		ret[i] = new(big.Int).SetInt64(1)
 	}
 	return ret
 }
 
 // defaultExp uses the default Exp function of big int to handle the edge cases that cannot benefit from this library
 // in terms of performance
-func defaultExp(x, m *Int, yList []*Int) []*Int {
-	ret := make([]*Int, len(yList))
+func defaultExp(x, m *big.Int, yList []*big.Int) []*big.Int {
+	ret := make([]*big.Int, len(yList))
 	for i := range yList {
-		ret[i] = new(Int).Exp(x, yList[i], m)
+		ret[i] = new(big.Int).Exp(x, yList[i], m)
 	}
 	return ret
 }
 
 // doubleExpNNMontgomery calculates x**y1 mod m and x**y2 mod m
 // Uses Montgomery representation.
-func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
+func doubleExpNNMontgomery(x, y1, y2, m nat) []*big.Int {
 	xx, RR, k0, numWords := montgomerySetup(x, m)
 	// one = 1, with equal length to that of m
 	one := make(nat, numWords)
@@ -109,7 +109,7 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
 		mmValues[i], temp = temp, mmValues[i]
 	}
 
-	ret := make([]*Int, 2)
+	ret := make([]*big.Int, 2)
 	for i := range mmValues {
 		// One last reduction, just in case.
 		// See golang.org/issue/13907.
@@ -128,13 +128,13 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
 		}
 		// final normalization
 		mmValues[i].norm()
-		ret[i] = new(Int).SetBits(mmValues[i])
+		ret[i] = new(big.Int).SetBits(mmValues[i])
 	}
 
 	return ret
 }
 
-func montgomerySetup(x, m nat) (xx, RR nat, k0 Word, numWords int) {
+func montgomerySetup(x, m nat) (xx, RR nat, k0 big.Word, numWords int) {
 	numWords = len(m)
 	xx = x
 
@@ -174,7 +174,7 @@ func montgomerySetup(x, m nat) (xx, RR nat, k0 Word, numWords int) {
 }
 
 // multiMontgomery calculates the modular montgomery exponent with result not normalized
-func multiMontgomery(m, power0, power1 nat, k0 Word, numWords int, yList []nat) []nat {
+func multiMontgomery(m, power0, power1 nat, k0 big.Word, numWords int, yList []nat) []nat {
 	// initialize each value to be 1 (Montgomery 1)
 	zList := make([]nat, len(yList))
 	for i := range zList {
@@ -217,7 +217,7 @@ func multiMontgomery(m, power0, power1 nat, k0 Word, numWords int, yList []nat) 
 }
 
 // multiMontgomeryWithPreComputeTable calculates the modular montgomery exponent with result not normalized
-func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords int, yList []nat, preTable *PreTable) []nat {
+func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 big.Word, numWords int, yList []nat, preTable *PreTable) []nat {
 	// initialize each value to be 1 (Montgomery 1)
 	z := make([]nat, len(yList))
 	for i := range z {
@@ -250,10 +250,6 @@ func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords
 				temp = temp.montgomery(z[k], preTable.table[i][j], m, k0, numWords)
 				z[k], temp = temp, z[k]
 			}
-			// // montgomery must have the returned value not same as the input values
-			// // we have to use this temp as the middle variable
-			// temp = temp.montgomery(squaredPower, squaredPower, m, k0, numWords)
-			// squaredPower, temp = temp, squaredPower
 		}
 	}
 	return z
@@ -263,7 +259,7 @@ func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords
 // In construction, many panic conditions. Use at your own risk!
 //
 // FourfoldExp is not a cryptographically constant-time operation.
-func FourfoldExp(x, m *Int, y []*Int) []*Int {
+func FourfoldExp(x, m *big.Int, y []*big.Int) []*big.Int {
 	xWords := x.Bits()
 	if len(xWords) == 0 {
 		return ones(4)
@@ -303,7 +299,7 @@ func FourfoldExp(x, m *Int, y []*Int) []*Int {
 
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
 // Uses Montgomery representation.
-func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
+func fourfoldExpNNMontgomery(x, m nat, y []*big.Int) []*big.Int {
 	xx, RR, k0, numWords := montgomerySetup(x, m)
 
 	// one = 1, with equal length to that of m
@@ -317,23 +313,23 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 
 	// Zero round, find common bits of the four values
 	//fmt.Println("test here, len = ", len([]nat{y[0].abs, y[1].abs, y[2].abs, y[3].abs}))
-	yNewList := fourfoldGCW([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
+	gcwList := fourfoldGCW([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
 	// First round, find common bits of the three values
 	var cm012, cm013, cm023, cm123 nat
-	cm012 = threefoldGCW(yNewList[:3])
-	cm013 = threefoldGCW([]nat{yNewList[0], yNewList[1], yNewList[3]})
-	cm023 = threefoldGCW([]nat{yNewList[0], yNewList[2], yNewList[3]})
-	cm123 = threefoldGCW(yNewList[1:4])
+	cm012 = threefoldGCW(gcwList[:3])
+	cm013 = threefoldGCW([]nat{gcwList[0], gcwList[1], gcwList[3]})
+	cm023 = threefoldGCW([]nat{gcwList[0], gcwList[2], gcwList[3]})
+	cm123 = threefoldGCW(gcwList[1:4])
 
 	var cm01, cm23, cm02, cm13, cm03, cm12 nat
-	yNewList[0], yNewList[1], cm01 = gcw(yNewList[0], yNewList[1])
-	yNewList[2], yNewList[3], cm23 = gcw(yNewList[2], yNewList[3])
-	yNewList[0], yNewList[2], cm02 = gcw(yNewList[0], yNewList[2])
-	yNewList[1], yNewList[3], cm13 = gcw(yNewList[1], yNewList[3])
-	yNewList[0], yNewList[3], cm03 = gcw(yNewList[0], yNewList[3])
-	yNewList[1], yNewList[2], cm12 = gcw(yNewList[1], yNewList[2])
+	gcwList[0], gcwList[1], cm01 = gcw(gcwList[0], gcwList[1])
+	gcwList[2], gcwList[3], cm23 = gcw(gcwList[2], gcwList[3])
+	gcwList[0], gcwList[2], cm02 = gcw(gcwList[0], gcwList[2])
+	gcwList[1], gcwList[3], cm13 = gcw(gcwList[1], gcwList[3])
+	gcwList[0], gcwList[3], cm03 = gcw(gcwList[0], gcwList[3])
+	gcwList[1], gcwList[2], cm12 = gcw(gcwList[1], gcwList[2])
 	//                                                                    0-4	  5     6      7       8     9     10     11    12    13    14
-	z := multiMontgomery(m, powers[0], powers[1], k0, numWords, append(yNewList, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
+	z := multiMontgomery(m, powers[0], powers[1], k0, numWords, append(gcwList, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
 
 	// calculate the actual values
 	assembleAndConvert(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
@@ -343,11 +339,11 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 
 	z = z[:4] //the rest are useless now
 
-	ret := make([]*Int, 4)
+	ret := make([]*big.Int, 4)
 	// normalize and set value
 	for i := range z {
 		z[i].norm()
-		ret[i] = new(Int).SetBits(z[i])
+		ret[i] = new(big.Int).SetBits(z[i])
 	}
 	return ret
 }
