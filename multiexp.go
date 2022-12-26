@@ -29,7 +29,7 @@ func DoubleExp(x, y1, y2, m *Int) []*Int {
 	if x.Sign() <= 0 || y1.Sign() <= 0 || y2.Sign() <= 0 || m.Sign() <= 0 {
 		return defaultExp(x, m, []*Int{y1, y2})
 	}
-	if len(xWords) <= 1 {
+	if len(xWords) == 0 || (len(xWords) == 1 && xWords[0] <= 1) {
 		return ones(2)
 	}
 	// x > 1
@@ -43,13 +43,16 @@ func DoubleExp(x, y1, y2, m *Int) []*Int {
 	y1Words := y1.Bits()
 	y2Words := y2.Bits()
 	// x**0 == 1 or x**1 == x
-	if len(y1Words) <= 1 || len(y2Words) <= 1 {
+	if len(y1Words) == 0 || (len(y1Words) == 1 && y1Words[0] <= 1) {
+		return defaultExp(x, m, []*Int{y1, y2})
+	}
+	if len(y2Words) == 0 || (len(y2Words) == 1 && y2Words[0] <= 1) {
 		return defaultExp(x, m, []*Int{y1, y2})
 	}
 	// y > 1
 
 	// only consider odd number m
-	if mWords[0] == 1 {
+	if mWords[0]&1 == 1 {
 		return doubleExpNNMontgomery(xWords, y1Words, y2Words, mWords)
 	}
 
