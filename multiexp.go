@@ -4,7 +4,16 @@ import (
 	. "math/big"
 )
 
-// defaultExp handles the conditions this lib do not support or cannot do better than the golang's exp
+var masks = [_W]Word{}
+
+func init() {
+	for i := 0; i < _W; i++ {
+		masks[i] = 1 << i
+	}
+}
+
+// defaultExp uses the default Exp function of big int to handle the edge cases that cannot benefit from this library
+// in terms of performance
 func defaultExp(x, m *Int, yList []*Int) []*Int {
 	ret := make([]*Int, len(yList))
 	for i := range yList {
@@ -40,13 +49,10 @@ func DoubleExp(x, y1, y2, m *Int) []*Int {
 	}
 	// m > 1
 
-	y1Words := y1.Bits()
-	y2Words := y2.Bits()
+	y1Words, y2Words := y1.Bits(), y2.Bits()
 	// x**0 == 1 or x**1 == x
-	if len(y1Words) == 0 || (len(y1Words) == 1 && y1Words[0] <= 1) {
-		return defaultExp(x, m, []*Int{y1, y2})
-	}
-	if len(y2Words) == 0 || (len(y2Words) == 1 && y2Words[0] <= 1) {
+	if len(y1Words) == 0 || (len(y1Words) == 1 && y1Words[0] <= 1) ||
+		len(y2Words) == 0 || (len(y2Words) == 1 && y2Words[0] <= 1) {
 		return defaultExp(x, m, []*Int{y1, y2})
 	}
 	// y > 1
@@ -116,32 +122,32 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
 	one := make(nat, numWords)
 	one[0] = 1
 
-	// powers[i] contains x^i
-	//var powers [2]nat
-	//powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
-	//powers[1] = powers[1].montgomery(x, RR, m, k0, numWords)
 	var power0, power1 nat
+	// power0 = x**0
 	power0 = power0.montgomery(one, RR, m, k0, numWords)
+	// power1 = x**1
 	power1 = power1.montgomery(x, RR, m, k0, numWords)
 
-	y1New, y2New, y3 := gcb(y1, y2)
-	z := multiMontgomery(m, power0, power1, k0, numWords, []nat{y1New, y2New, y3})
-	// calculate z1 and z2
+	y1Extra, y2Extra, commonBits := gcw(y1, y2)
+	mmValues := multiMontgomery(m, power0, power1, k0, numWords, []nat{y1Extra, y2Extra, commonBits})
+	// calculate z1 and z2, 1st, 2nd and 3rd elements of mmValues correspond to y1Extra, y2Extra and commonBits
 	temp := nat(nil).make(numWords)
-	temp = temp.montgomery(z[0], z[2], m, k0, numWords)
-	z[0], temp = temp, z[0]
-	temp = temp.montgomery(z[1], z[2], m, k0, numWords)
-	z[1], temp = temp, z[1]
-	z = z[:2] //z3 is useless now
+	temp = temp.montgomery(mmValues[0], mmValues[2], m, k0, numWords)
+	mmValues[0], temp = temp, mmValues[0]
+	temp = temp.montgomery(mmValues[1], mmValues[2], m, k0, numWords)
+	mmValues[1], temp = temp, mmValues[1]
+	mmValues = mmValues[:2] //mm3 is useless now
 	// convert to regular number
-	for i := range z {
-		temp = temp.montgomery(z[i], one, m, k0, numWords)
-		z[i], temp = temp, z[i]
+	for i := range mmValues {
+		temp = temp.montgomery(mmValues[i], one, m, k0, numWords)
+		mmValues[i], temp = temp, mmValues[i]
 	}
-	for i := range z {
+
+	ret := make([]*Int, 2)
+	for i := range mmValues {
 		// One last reduction, just in case.
 		// See golang.org/issue/13907.
-		if z[i].cmp(m) >= 0 {
+		if mmValues[i].cmp(m) >= 0 {
 			// Common case is m has high bit set; in that case,
 			// since zz is the same length as m, there can be just
 			// one multiple of m to remove. Just subtract.
@@ -149,58 +155,51 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*Int {
 			// so do that unconditionally, but double-check,
 			// in case our beliefs are wrong.
 			// The div is not expected to be reached.
-			z[i] = z[i].sub(z[i], m)
-			if z[i].cmp(m) >= 0 {
-				_, z[i] = nat(nil).div(nil, z[i], m)
+			mmValues[i] = mmValues[i].sub(mmValues[i], m)
+			if mmValues[i].cmp(m) >= 0 {
+				_, mmValues[i] = nat(nil).div(nil, mmValues[i], m)
 			}
 		}
+		// final normalization
+		mmValues[i].norm()
+		ret[i] = new(Int).SetBits(mmValues[i])
 	}
 
-	ret := make([]*Int, 2)
-	for i := range ret {
-		ret[i] = new(Int)
-	}
-
-	// normalize and set value
-	for i := range z {
-		z[i].norm()
-		ret[i].SetBits(z[i])
-	}
 	return ret
 }
 
 // multiMontgomery calculates the modular montgomery exponent with result not normalized
 func multiMontgomery(m, power0, power1 nat, k0 Word, numWords int, yList []nat) []nat {
 	// initialize each value to be 1 (Montgomery 1)
-	z := make([]nat, len(yList))
-	for i := range z {
-		z[i] = z[i].make(numWords)
-		copy(z[i], power0)
+	zList := make([]nat, len(yList))
+	for i := range zList {
+		zList[i] = zList[i].make(numWords)
+		copy(zList[i], power0)
 	}
 
-	var squaredPower nat
-	squaredPower = squaredPower.make(numWords)
+	squaredPower := nat(nil).make(numWords)
 	copy(squaredPower, power1)
 	//	fmt.Println("squaredPower = ", squaredPower.String())
 
-	maxLen := 1
+	maxWordLen := 1
 	for i := range yList {
-		if len(yList[i]) > maxLen {
-			maxLen = len(yList[i])
+		if len(yList[i]) > maxWordLen {
+			maxWordLen = len(yList[i])
 		}
 	}
 
 	temp := nat(nil).make(numWords)
-	for i := 0; i < maxLen; i++ {
+	for i := 0; i < maxWordLen; i++ {
 		for j := 0; j < _W; j++ {
-			mask := Word(1 << j)
 			for k := range yList {
-				if len(yList[k]) > i {
-					if (yList[k][i] & mask) == mask {
-						temp = temp.montgomery(z[k], squaredPower, m, k0, numWords)
-						z[k], temp = temp, z[k]
-					}
+				if len(yList[k]) <= i {
+					continue
 				}
+				if (yList[k][i] & masks[j]) != masks[j] {
+					continue
+				}
+				temp = temp.montgomery(zList[k], squaredPower, m, k0, numWords)
+				zList[k], temp = temp, zList[k]
 			}
 			// montgomery must have the returned value not same as the input values
 			// we have to use this temp as the middle variable
@@ -208,13 +207,14 @@ func multiMontgomery(m, power0, power1 nat, k0 Word, numWords int, yList []nat) 
 			squaredPower, temp = temp, squaredPower
 		}
 	}
-	return z
+
+	return zList
 }
 
 // multiMontgomeryWithPreComputeTable calculates the modular montgomery exponent with result not normalized
-func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords int, y []nat, pretable *PreTable) []nat {
+func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords int, yList []nat, pretable *PreTable) []nat {
 	// initialize each value to be 1 (Montgomery 1)
-	z := make([]nat, len(y))
+	z := make([]nat, len(yList))
 	for i := range z {
 		z[i] = z[i].make(numWords)
 		copy(z[i], power0)
@@ -227,22 +227,23 @@ func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word, numWords
 	//	fmt.Println("squaredPower = ", squaredPower.String())
 
 	maxLen := 1
-	for i := range y {
-		if len(y[i]) > maxLen {
-			maxLen = len(y[i])
+	for i := range yList {
+		if len(yList[i]) > maxLen {
+			maxLen = len(yList[i])
 		}
 	}
 
 	for i := 0; i < maxLen; i++ {
 		for j := 0; j < _W; j++ {
-			mask := Word(1 << j)
-			for k := range y {
-				if len(y[k]) > i {
-					if (y[k][i] & mask) == mask {
-						temp = temp.montgomery(z[k], pretable.table[i][j], m, k0, numWords)
-						z[k], temp = temp, z[k]
-					}
+			for k := range yList {
+				if len(yList[k]) <= i {
+					continue
 				}
+				if (yList[k][i] & masks[j]) != masks[j] {
+					continue
+				}
+				temp = temp.montgomery(z[k], pretable.table[i][j], m, k0, numWords)
+				z[k], temp = temp, z[k]
 			}
 			// // montgomery must have the returned value not same as the input values
 			// // we have to use this temp as the middle variable
@@ -344,21 +345,21 @@ func fourfoldExpNNMontgomery(x, m nat, y []*Int) []*Int {
 
 	// Zero round, find common bits of the four values
 	//fmt.Println("test here, len = ", len([]nat{y[0].abs, y[1].abs, y[2].abs, y[3].abs}))
-	yNewList := fourfoldGcb([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
+	yNewList := fourfoldGCW([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
 	// First round, find common bits of the three values
 	var cm012, cm013, cm023, cm123 nat
-	cm012 = threefoldGcb(yNewList[:3])
-	cm013 = threefoldGcb([]nat{yNewList[0], yNewList[1], yNewList[3]})
-	cm023 = threefoldGcb([]nat{yNewList[0], yNewList[2], yNewList[3]})
-	cm123 = threefoldGcb(yNewList[1:4])
+	cm012 = threefoldGCW(yNewList[:3])
+	cm013 = threefoldGCW([]nat{yNewList[0], yNewList[1], yNewList[3]})
+	cm023 = threefoldGCW([]nat{yNewList[0], yNewList[2], yNewList[3]})
+	cm123 = threefoldGCW(yNewList[1:4])
 
 	var cm01, cm23, cm02, cm13, cm03, cm12 nat
-	yNewList[0], yNewList[1], cm01 = gcb(yNewList[0], yNewList[1])
-	yNewList[2], yNewList[3], cm23 = gcb(yNewList[2], yNewList[3])
-	yNewList[0], yNewList[2], cm02 = gcb(yNewList[0], yNewList[2])
-	yNewList[1], yNewList[3], cm13 = gcb(yNewList[1], yNewList[3])
-	yNewList[0], yNewList[3], cm03 = gcb(yNewList[0], yNewList[3])
-	yNewList[1], yNewList[2], cm12 = gcb(yNewList[1], yNewList[2])
+	yNewList[0], yNewList[1], cm01 = gcw(yNewList[0], yNewList[1])
+	yNewList[2], yNewList[3], cm23 = gcw(yNewList[2], yNewList[3])
+	yNewList[0], yNewList[2], cm02 = gcw(yNewList[0], yNewList[2])
+	yNewList[1], yNewList[3], cm13 = gcw(yNewList[1], yNewList[3])
+	yNewList[0], yNewList[3], cm03 = gcw(yNewList[0], yNewList[3])
+	yNewList[1], yNewList[2], cm12 = gcw(yNewList[1], yNewList[2])
 	//                                                                    0-4	  5     6      7       8     9     10     11    12    13    14
 	z := multiMontgomery(m, powers[0], powers[1], k0, numWords, append(yNewList, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
 

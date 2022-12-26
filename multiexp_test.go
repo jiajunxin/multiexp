@@ -155,7 +155,7 @@ func TestFourfoldExpParallel(t *testing.T) {
 	fmt.Println("BitLen = ", max.BitLen())
 	fmt.Println("maxLen = ", maxLen)
 	table := PreCompute(g, N, maxLen)
-	result := FourFoldExpWithPreComputeTableParallel(g, N, []*Int{x1, x2, x3, x4}, table)
+	result := FourfoldExpWithPreComputeTableParallel(g, N, []*Int{x1, x2, x3, x4}, table)
 	var result2 Int
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
@@ -180,7 +180,7 @@ func TestFourfoldExpParallel(t *testing.T) {
 	x4.SetInt64(5000000)
 	N.SetInt64(2000001)
 	table = PreCompute(g, N, maxLen)
-	result = FourFoldExpWithPreComputeTableParallel(g, N, []*Int{x1, x2, x3, x4}, table)
+	result = FourfoldExpWithPreComputeTableParallel(g, N, []*Int{x1, x2, x3, x4}, table)
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExpParallel")
