@@ -83,17 +83,7 @@ func defaultExp(x, m *big.Int, yList []*big.Int) []*big.Int {
 // doubleExpNNMontgomery calculates x**y1 mod m and x**y2 mod m
 // Uses Montgomery representation.
 func doubleExpNNMontgomery(x, y1, y2, m nat) []*big.Int {
-	xx, RR, k0, numWords := montgomerySetup(x, m)
-	// one = 1, with equal length to that of m
-	one := make(nat, numWords)
-	one[0] = 1
-
-	var power0, power1 nat
-	// power0 = x**0
-	power0 = power0.montgomery(one, RR, m, k0, numWords)
-	// power1 = x**1
-	power1 = power1.montgomery(xx, RR, m, k0, numWords)
-
+	power0, power1, k0, numWords := montgomerySetup(x, m)
 	y1Extra, y2Extra, commonBits := gcw(y1, y2)
 	mmValues := multiMontgomery(m, power0, power1, k0, numWords, []nat{y1Extra, y2Extra, commonBits})
 	// calculate z1 and z2, 1st, 2nd and 3rd elements of mmValues correspond to y1Extra, y2Extra and commonBits
@@ -104,6 +94,9 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*big.Int {
 	mmValues[1], temp = temp, mmValues[1]
 	mmValues = mmValues[:2] //mm3 is useless now
 	// convert to regular number
+	// one = 1, with equal length to that of m
+	one := make(nat, numWords)
+	one[0] = 1
 	for i := range mmValues {
 		temp = temp.montgomery(mmValues[i], one, m, k0, numWords)
 		mmValues[i], temp = temp, mmValues[i]
@@ -134,9 +127,9 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*big.Int {
 	return ret
 }
 
-func montgomerySetup(x, m nat) (xx, RR nat, k0 big.Word, numWords int) {
+func montgomerySetup(x, m nat) (power0, power1 nat, k0 big.Word, numWords int) {
 	numWords = len(m)
-	xx = x
+	xx := x
 
 	// We want the lengths of x and m to be equal.
 	// It is OK if x >= m as long as len(x) == len(m).
@@ -162,7 +155,7 @@ func montgomerySetup(x, m nat) (xx, RR nat, k0 big.Word, numWords int) {
 	k0 = -k0
 
 	// RR = 2**(2*_W*len(m)) mod m
-	RR = nat(nil).setWord(1)
+	RR := nat(nil).setWord(1)
 	zz1 := nat(nil).shl(RR, uint(2*numWords*_W))
 	_, RR = nat(nil).div(RR, zz1, m)
 	if len(RR) < numWords {
@@ -170,6 +163,15 @@ func montgomerySetup(x, m nat) (xx, RR nat, k0 big.Word, numWords int) {
 		copy(zz1, RR)
 		RR = zz1
 	}
+
+	// one = 1, with equal length to that of m
+	one := make(nat, numWords)
+	one[0] = 1
+
+	// power0 = x**0
+	power0 = power0.montgomery(one, RR, m, k0, numWords)
+	// power1 = x**1
+	power1 = power1.montgomery(xx, RR, m, k0, numWords)
 	return
 }
 
@@ -300,17 +302,7 @@ func FourfoldExp(x, m *big.Int, y []*big.Int) []*big.Int {
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
 // Uses Montgomery representation.
 func fourfoldExpNNMontgomery(x, m nat, y []*big.Int) []*big.Int {
-	xx, RR, k0, numWords := montgomerySetup(x, m)
-
-	// one = 1, with equal length to that of m
-	one := make(nat, numWords)
-	one[0] = 1
-
-	// powers[i] contains x^i
-	var powers [2]nat
-	powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
-	powers[1] = powers[1].montgomery(xx, RR, m, k0, numWords)
-
+	power0, power1, k0, numWords := montgomerySetup(x, m)
 	// Zero round, find common bits of the four values
 	//fmt.Println("test here, len = ", len([]nat{y[0].abs, y[1].abs, y[2].abs, y[3].abs}))
 	gcwList := fourfoldGCW([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
@@ -329,7 +321,7 @@ func fourfoldExpNNMontgomery(x, m nat, y []*big.Int) []*big.Int {
 	gcwList[0], gcwList[3], cm03 = gcw(gcwList[0], gcwList[3])
 	gcwList[1], gcwList[2], cm12 = gcw(gcwList[1], gcwList[2])
 	//                                                                    0-4	  5     6      7       8     9     10     11    12    13    14
-	z := multiMontgomery(m, powers[0], powers[1], k0, numWords, append(gcwList, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
+	z := multiMontgomery(m, power0, power1, k0, numWords, append(gcwList, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12))
 
 	// calculate the actual values
 	assembleAndConvert(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
