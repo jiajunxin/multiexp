@@ -1,21 +1,22 @@
 package multiexp
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
-	. "math/big"
+	"math/big"
 )
 
 type PreTable struct {
-	Base      *Int
-	Modulus   *Int
+	Base      *big.Int
+	Modulus   *big.Int
 	TableSize int
 	table     [][]nat
 }
 
-func PreCompute(base, modular *Int, tableSize int) *PreTable {
+func PreCompute(base, modular *big.Int, tableSize int) *PreTable {
 	if tableSize <= 0 {
 		return nil
 	}
@@ -71,55 +72,71 @@ func PreCompute(base, modular *Int, tableSize int) *PreTable {
 	}
 }
 
+func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, m nat, k0 big.Word, numWords int,
+	inputChan chan input, outputChan chan nat) {
+	temp := nat(nil).make(numWords)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case in := <-inputChan:
+			ret := nat(nil).make(numWords)
+			copy(ret, power0)
+			for i := 0; i < in.wordLen; i++ {
+				for j := 0; j < _W; j++ {
+					if (in.wordChunk[i] & masks[j]) != masks[j] {
+						continue
+					}
+					temp = temp.montgomery(ret, p.table[i+in.pivot][j], m, k0, numWords)
+					ret, temp = temp, ret
+				}
+			}
+			outputChan <- ret
+		default:
+			continue
+		}
+	}
+}
+
 // FourfoldExpWithPreComputeTableParallel sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
 // In construction, many panic conditions. Use at your own risk!
 // Use at most 4 threads for now.
 // FourfoldExpWithPreComputeTableParallel is not a cryptographically constant-time operation.
-func FourfoldExpWithPreComputeTableParallel(x, m *Int, y []*Int, preTable *PreTable) []*Int {
-	xWords := x.Bits()
-	if len(xWords) == 0 {
-		return ones(4)
+func FourfoldExpWithPreComputeTableParallel(x, m *big.Int, yList []*big.Int, preTable *PreTable) []*big.Int {
+	if x.Sign() < 0 {
+		panic("invalid x: negative value")
 	}
-	if x.Sign() <= 0 || m.Sign() <= 0 {
-		panic("negative x or m as input for MultiExp")
+	if x.Cmp(big1) <= 0 {
+		return defaultExp(x, m, yList)
 	}
-	if len(y)%2 != 0 {
-		panic("MultiExp does not support odd length of y for now!")
+	if m == nil {
+		panic("invalid m: nil value")
 	}
-	for i := range y {
-		if y[i].Sign() <= 0 {
-			panic("negative y[i] as input for MultiExp")
+	if m.Sign() <= 0 {
+		panic("invalid m: non-positive value")
+	}
+	if len(yList) != 4 {
+		panic("invalid yList element size")
+	}
+	for i := range yList {
+		if yList[i].Sign() <= 0 {
+			panic("invalid yList: non-positive value")
 		}
 	}
-	if len(xWords) == 1 && xWords[0] == 1 {
-		return ones(len(y))
-	}
-
-	// x > 1
-
-	if m == nil {
-		return ones(len(y))
-	}
-	mWords := m.Bits() // m.abs may be nil for m == 0
-	if len(mWords) == 0 {
-		return ones(len(y))
-	}
-	// m > 1
-	// y > 0
-
-	if mWords[0]&1 != 1 {
-		panic("The input modular is not a odd number")
+	if m.Bit(0) != 1 {
+		panic("The input modular is not an odd number")
 	}
 	// check if the table is same as the input parameters
 	if preTable.Base.Cmp(x) != 0 || preTable.Modulus.Cmp(m) != 0 {
 		panic("The input table does not match the input")
 	}
-	return fourfoldExpNNMontgomeryWithPreComputeTableParallel(xWords, mWords, y, preTable)
+	xWords, mWords := x.Bits(), m.Bits()
+	return fourfoldExpNNMontgomeryWithPreComputeTableParallel(xWords, mWords, yList, preTable)
 }
 
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
 // Uses Montgomery representation.
-func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, preTable *PreTable) []*Int {
+func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*big.Int, preTable *PreTable) []*big.Int {
 	power0, power1, k0, numWords := montgomerySetup(x, m)
 
 	gcwList := fourfoldGCW([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
@@ -167,16 +184,16 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, preT
 
 	z = z[:4]
 
-	ret := make([]*Int, 4)
+	ret := make([]*big.Int, 4)
 	// normalize and set value
 	for i := range z {
 		z[i].norm()
-		ret[i] = new(Int).SetBits(z[i])
+		ret[i] = new(big.Int).SetBits(z[i])
 	}
 	return ret
 }
 
-func assembleAndConvert(prod *nat, set []nat, mm nat, k0 Word, numWords int) {
+func assembleAndConvert(prod *nat, set []nat, mm nat, k0 big.Word, numWords int) {
 	var temp nat
 	temp = temp.make(numWords)
 	var m nat
@@ -213,7 +230,7 @@ func assembleAndConvert(prod *nat, set []nat, mm nat, k0 Word, numWords int) {
 	}
 }
 
-func assembleAndConvertWithWG(prod *nat, set []nat, mm nat, k0 Word, numWords int, wg *sync.WaitGroup) {
+func assembleAndConvertWithWG(prod *nat, set []nat, mm nat, k0 big.Word, numWords int, wg *sync.WaitGroup) {
 	var temp nat
 	temp = temp.make(numWords)
 	var m nat
@@ -252,7 +269,8 @@ func assembleAndConvertWithWG(prod *nat, set []nat, mm nat, k0 Word, numWords in
 }
 
 // multiMontgomeryWithPreComputeTableWithChan calculates the modular montgomery exponent with result not normalized
-func multiMontgomeryWithPreComputeTableWithChan(m, power0, power1 nat, k0 Word, numWords int, y []nat, preTable *PreTable, c chan []nat) {
+func multiMontgomeryWithPreComputeTableWithChan(m, power0, power1 nat, k0 big.Word, numWords int,
+	y []nat, preTable *PreTable, c chan []nat) {
 	startingTime := time.Now().UTC()
 
 	// initialize each value to be 1 (Montgomery 1)
@@ -262,12 +280,6 @@ func multiMontgomeryWithPreComputeTableWithChan(m, power0, power1 nat, k0 Word, 
 		copy(z[i], power0)
 	}
 
-	var squaredPower, temp nat
-	squaredPower = squaredPower.make(numWords)
-	temp = temp.make(numWords)
-	copy(squaredPower, power1)
-	//	fmt.Println("squaredPower = ", squaredPower.String())
-
 	maxLen := 1
 	for i := range y {
 		if len(y[i]) > maxLen {
@@ -275,12 +287,13 @@ func multiMontgomeryWithPreComputeTableWithChan(m, power0, power1 nat, k0 Word, 
 		}
 	}
 
+	temp := nat(nil).make(numWords)
 	for i := 0; i < maxLen; i++ {
 		for j := 0; j < _W; j++ {
-			mask := Word(1 << j)
+			//mask := Word(1 << j)
 			for k := range y {
 				if len(y[k]) > i {
-					if (y[k][i] & mask) == mask {
+					if (y[k][i] & masks[j]) == masks[j] {
 						temp = temp.montgomery(z[k], preTable.table[i][j], m, k0, numWords)
 						z[k], temp = temp, z[k]
 					}

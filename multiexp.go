@@ -1,10 +1,16 @@
 package multiexp
 
 import (
+	"context"
 	"math/big"
 )
 
-var masks = [_W]big.Word{}
+const wordChunkSize = 4
+
+var (
+	big1  = big.NewInt(1)
+	masks = [_W]big.Word{}
+)
 
 func init() {
 	for i := 0; i < _W; i++ {
@@ -18,60 +24,24 @@ func init() {
 //
 // DoubleExp is not a cryptographically constant-time operation.
 func DoubleExp(x, y1, y2, m *big.Int) []*big.Int {
-	xWords := x.Bits()
-	if len(xWords) == 0 {
-		return ones(2)
-	}
-	if m == nil {
-		return ones(2)
-	}
-	if x.Sign() <= 0 || y1.Sign() <= 0 || y2.Sign() <= 0 || m.Sign() <= 0 {
+	// make sure x > 1, m is not nil, and m > 0, otherwise, use default Exp function
+	if x.Cmp(big1) <= 0 || m == nil || m.Sign() <= 0 {
 		return defaultExp(x, m, []*big.Int{y1, y2})
 	}
-	if len(xWords) == 0 || (len(xWords) == 1 && xWords[0] <= 1) {
-		return ones(2)
-	}
-	// x > 1
-
-	mWords := m.Bits() // m.abs may be nil for m == 0
-	if len(mWords) == 0 {
-		return ones(2)
-	}
-	// m > 1
-
-	y1Words, y2Words := y1.Bits(), y2.Bits()
-	// x**0 == 1 or x**1 == x
-	if len(y1Words) == 0 || (len(y1Words) == 1 && y1Words[0] <= 1) ||
-		len(y2Words) == 0 || (len(y2Words) == 1 && y2Words[0] <= 1) {
+	// make sure y1 and y2 are positive
+	if y1.Sign() <= 0 || y2.Sign() <= 0 {
 		return defaultExp(x, m, []*big.Int{y1, y2})
 	}
-	// y > 1
-
-	// only consider odd number m
-	if mWords[0]&1 == 1 {
-		return doubleExpNNMontgomery(xWords, y1Words, y2Words, mWords)
+	// make sure m is odd
+	if m.Bit(0) != 1 {
+		return defaultExp(x, m, []*big.Int{y1, y2})
 	}
-
-	// if m is even
-	results := make([]*big.Int, 2)
-	for idx := range results {
-		results[idx] = new(big.Int)
-		nat(results[idx].Bits()).rem(xWords, mWords)
-	}
-	return results
+	xWords, y1Words, y2Words, mWords := x.Bits(), y1.Bits(), y2.Bits(), m.Bits()
+	return doubleExpNNMontgomery(xWords, y1Words, y2Words, mWords)
 }
 
-// ones inputs a slice length and returns a slice of *Int, with all values "1"
-func ones(length int) []*big.Int {
-	ret := make([]*big.Int, length)
-	for i := range ret {
-		ret[i] = new(big.Int).SetInt64(1)
-	}
-	return ret
-}
-
-// defaultExp uses the default Exp function of big int to handle the edge cases that cannot benefit from this library
-// in terms of performance
+// defaultExp uses the default Exp function of big int to handle the edge cases that cannot be handled by this library
+// or cannot benefit from this library in terms of performance or
 func defaultExp(x, m *big.Int, yList []*big.Int) []*big.Int {
 	ret := make([]*big.Int, len(yList))
 	for i := range yList {
@@ -261,42 +231,27 @@ func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 big.Word, numW
 // In construction, many panic conditions. Use at your own risk!
 //
 // FourfoldExp is not a cryptographically constant-time operation.
-func FourfoldExp(x, m *big.Int, y []*big.Int) []*big.Int {
-	xWords := x.Bits()
-	if len(xWords) == 0 {
-		return ones(4)
+func FourfoldExp(x, m *big.Int, yList []*big.Int) []*big.Int {
+	// make sure x > 1, m is not nil, and m > 0, otherwise, use default Exp function
+	if x.Cmp(big1) <= 0 || m == nil || m.Sign() <= 0 {
+		return defaultExp(x, m, yList)
 	}
-	if x.Sign() <= 0 || m.Sign() <= 0 {
-		return defaultExp(x, m, y)
+	// make sure the number of yList elements is equal to 4
+	if len(yList) != 4 {
+		return defaultExp(x, m, yList)
 	}
-	if len(y)%2 != 0 {
-		return defaultExp(x, m, y)
-	}
-	for i := range y {
-		if y[i].Sign() <= 0 {
-			return defaultExp(x, m, y)
+	// make sure all the yList elements are positive
+	for i := range yList {
+		if yList[i].Sign() <= 0 {
+			return defaultExp(x, m, yList)
 		}
 	}
-	if len(xWords) == 1 && xWords[0] == 1 {
-		return ones(len(y))
+	// make sure m is odd
+	if m.Bit(0) != 1 {
+		return defaultExp(x, m, yList)
 	}
-
-	// x > 1
-
-	if m == nil {
-		return ones(len(y))
-	}
-	mWords := m.Bits() // m.abs may be nil for m == 0
-	if len(mWords) == 0 {
-		return ones(len(y))
-	}
-	// m > 1
-	// y > 0
-
-	if mWords[0]&1 != 1 {
-		return defaultExp(x, m, y)
-	}
-	return fourfoldExpNNMontgomery(xWords, mWords, y)
+	xWords, mWords := x.Bits(), m.Bits()
+	return fourfoldExpNNMontgomery(xWords, mWords, yList)
 }
 
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
@@ -338,4 +293,93 @@ func fourfoldExpNNMontgomery(x, m nat, y []*big.Int) []*big.Int {
 		ret[i] = new(big.Int).SetBits(z[i])
 	}
 	return ret
+}
+
+// ExpParallel computes x ** y mod |m| utilizing multiple CPU cores
+// numRoutine specifies the number of routine for computing the result
+func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine int) *big.Int {
+	if preTable == nil {
+		panic("precompute table is nil")
+	}
+	if preTable.Base.Cmp(x) != 0 {
+		panic("precompute table not match: invalid base")
+	}
+	if preTable.Modulus.Cmp(m) != 0 {
+		panic("precompute table not match: invalid modulus")
+	}
+	// make sure x > 1, m is not nil, m > 0, m is odd, and y is positive,
+	// otherwise, use default Exp function
+	if x.Cmp(big1) <= 0 || y.Sign() <= 0 || m == nil || m.Sign() <= 0 || m.Bit(0) != 1 {
+		return new(big.Int).Exp(x, y, m)
+	}
+	if numRoutine <= 0 {
+		numRoutine = 1
+	}
+	xWords, yWords, mWords := x.Bits(), y.Bits(), m.Bits()
+	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine)
+	return new(big.Int).SetBits(zWords)
+}
+
+func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine int) nat {
+	power0, _, k0, numWords := montgomerySetup(x, m)
+	inputChan := make(chan input, numRoutine<<2)
+	outputChan := make(chan nat, numRoutine)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	for i := 0; i < numRoutine; i++ {
+		go table.routineExpNNMontgomery(ctx, power0, m, k0, numWords, inputChan, outputChan)
+	}
+	resChan := make(chan nat)
+	go func() {
+		ret := nat(nil).make(numWords)
+		copy(ret, power0)
+		counter := len(y) / wordChunkSize
+		if len(y)%wordChunkSize != 0 {
+			counter++
+		}
+		temp := nat(nil).make(numWords)
+		for out := range outputChan {
+			temp = temp.montgomery(ret, out, m, k0, numWords)
+			ret, temp = temp, ret
+			counter--
+			if counter == 0 {
+				resChan <- ret
+			}
+		}
+	}()
+
+	for i := 0; i < len(y); i += wordChunkSize {
+		wordLen := wordChunkSize
+		if i+wordLen > len(y) {
+			wordLen = len(y) - i
+		}
+		inputChan <- input{
+			pivot:     i,
+			wordLen:   wordLen,
+			wordChunk: y[i : i+wordLen],
+		}
+	}
+
+	ret := <-resChan
+	one := make(nat, numWords)
+	one[0] = 1
+	temp := nat(nil).make(numWords)
+	temp = temp.montgomery(ret, one, m, k0, numWords)
+	ret, temp = temp, ret
+	// final reduction
+	if ret.cmp(m) >= 0 {
+		ret = ret.sub(ret, m)
+		if ret.cmp(m) >= 0 {
+			_, ret = nat(nil).div(nil, ret, m)
+		}
+	}
+	// normalization
+	ret.norm()
+	return ret
+}
+
+type input struct {
+	pivot     int
+	wordLen   int
+	wordChunk nat
 }
