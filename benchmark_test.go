@@ -144,12 +144,3 @@ func BenchmarkExpParallel16(b *testing.B) {
 		ExpParallel(g, xList[0], n, table, 16, 0)
 	}
 }
-
-func BenchmarkExpParallel32(b *testing.B) {
-	g, n, xList := getBenchParameters(1)
-	table := getBenchPrecomputeTable()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ExpParallel(g, xList[0], n, table, 32, 0)
-	}
-}

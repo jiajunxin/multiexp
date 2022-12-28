@@ -5,7 +5,7 @@ import (
 	"math/big"
 )
 
-const defaultWordChunkSize = 4
+const defaultWordChunkSize = 2
 
 var (
 	big1  = big.NewInt(1)
@@ -323,47 +323,34 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine, wordChunkSize
 	return new(big.Int).SetBits(zWords)
 }
 
-func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine, wordChunkSize int) nat {
-	power0, _, k0, numWords := montgomerySetup(x, m)
-	pivotChan := make(chan pivots, numRoutine<<2)
-	outputChan := make(chan nat, numRoutine)
+func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutines, wordChunkSize int) nat {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	for i := 0; i < numRoutine; i++ {
-		go table.routineExpNNMontgomery(ctx, power0, y, m, k0, pivotChan, outputChan)
+	power0, _, k0, numWords := montgomerySetup(x, m)
+	numPivots := len(y) / wordChunkSize
+	if len(y)%wordChunkSize != 0 {
+		numPivots++
 	}
-	resChan := make(chan nat)
-	temp := nat(nil).make(numWords)
-	go func() {
-		ret := nat(nil).make(numWords)
-		copy(ret, power0)
-		counter := len(y) / wordChunkSize
-		if len(y)%wordChunkSize != 0 {
-			counter++
-		}
-		for out := range outputChan {
-			temp = temp.montgomery(ret, out, m, k0, numWords)
-			ret, temp = temp, ret
-			counter--
-			if counter == 0 {
-				resChan <- ret
-				break
-			}
-		}
-	}()
-
+	pivots := make(chan int, numPivots)
 	for i := 0; i < len(y); i += wordChunkSize {
-		right := i + wordChunkSize
-		if right > len(y) {
-			right = len(y)
-		}
-		pivotChan <- pivots{
-			left:  i,
-			right: right,
+		pivots <- i
+	}
+	outputs := make(chan nat, numRoutines)
+	for i := 0; i < numRoutines; i++ {
+		go table.routineExpNNMontgomery(ctx, power0, y, m, k0, wordChunkSize, pivots, outputs)
+	}
+	ret := power0
+	temp := nat(nil).make(numWords)
+	for out := range outputs {
+		temp = temp.montgomery(ret, out, m, k0, numWords)
+		ret, temp = temp, ret
+		numRoutines--
+		if numRoutines == 0 {
+			close(pivots)
+			close(outputs)
+			break
 		}
 	}
-
-	ret := <-resChan
 	one := make(nat, numWords)
 	one[0] = 1
 	temp = temp.montgomery(ret, one, m, k0, numWords)
@@ -377,9 +364,4 @@ func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine
 	}
 	// normalization
 	return ret.norm()
-}
-
-type pivots struct {
-	left  int
-	right int
 }
