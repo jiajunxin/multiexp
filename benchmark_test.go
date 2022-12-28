@@ -141,7 +141,7 @@ func BenchmarkExpParallel1(b *testing.B) {
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 1)
+		ExpParallel(g, x, N, table, 1, 0)
 	}
 }
 
@@ -150,7 +150,7 @@ func BenchmarkExpParallel4(b *testing.B) {
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 4)
+		ExpParallel(g, x, N, table, 4, 0)
 	}
 }
 
@@ -159,7 +159,7 @@ func BenchmarkExpParallel8(b *testing.B) {
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 8)
+		ExpParallel(g, x, N, table, 8, 0)
 	}
 }
 
@@ -168,7 +168,7 @@ func BenchmarkExpParallel16(b *testing.B) {
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 16)
+		ExpParallel(g, x, N, table, 16, 0)
 	}
 }
 
@@ -177,15 +177,6 @@ func BenchmarkExpParallel32(b *testing.B) {
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 32)
-	}
-}
-
-func BenchmarkExpParallel64(b *testing.B) {
-	g, x, N := getBenchParameters()
-	table := getBenchPrecomputeTable()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 64)
+		ExpParallel(g, x, N, table, 32, 0)
 	}
 }

@@ -297,7 +297,7 @@ func fourfoldExpNNMontgomery(x, m nat, y []*big.Int) []*big.Int {
 
 // ExpParallel computes x ** y mod |m| utilizing multiple CPU cores
 // numRoutine specifies the number of routine for computing the result
-func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine int) *big.Int {
+func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine, wordChunkSize int) *big.Int {
 	if preTable == nil {
 		panic("precompute table is nil")
 	}
@@ -315,15 +315,15 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine int) *big.Int 
 	if numRoutine <= 0 {
 		numRoutine = 1
 	}
+	if wordChunkSize <= 0 {
+		wordChunkSize = defaultWordChunkSize
+	}
 	xWords, yWords, mWords := x.Bits(), y.Bits(), m.Bits()
-	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine, 0)
+	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine, wordChunkSize)
 	return new(big.Int).SetBits(zWords)
 }
 
 func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine, wordChunkSize int) nat {
-	if wordChunkSize <= 0 {
-		wordChunkSize = defaultWordChunkSize
-	}
 	power0, _, k0, numWords := montgomerySetup(x, m)
 	inputChan := make(chan input, numRoutine<<2)
 	outputChan := make(chan nat, numRoutine)
