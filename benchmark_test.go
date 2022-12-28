@@ -40,7 +40,7 @@ func getBenchPrecomputeTable() *PreTable {
 	onceBenchTable.Do(func() {
 		g, _, N := getBenchParameters()
 		randLmtLen := (getBenchRandLimit().BitLen() / GetWidth()) + 1
-		table = PreCompute(g, N, randLmtLen)
+		table = NewPrecomputeTable(g, N, randLmtLen)
 	})
 	return table
 }

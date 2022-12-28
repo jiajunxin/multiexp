@@ -5,7 +5,7 @@ import (
 	"math/big"
 )
 
-const wordChunkSize = 4
+const defaultWordChunkSize = 4
 
 var (
 	big1  = big.NewInt(1)
@@ -316,11 +316,14 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine int) *big.Int 
 		numRoutine = 1
 	}
 	xWords, yWords, mWords := x.Bits(), y.Bits(), m.Bits()
-	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine)
+	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine, 0)
 	return new(big.Int).SetBits(zWords)
 }
 
-func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine int) nat {
+func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine, wordChunkSize int) nat {
+	if wordChunkSize <= 0 {
+		wordChunkSize = defaultWordChunkSize
+	}
 	power0, _, k0, numWords := montgomerySetup(x, m)
 	inputChan := make(chan input, numRoutine<<2)
 	outputChan := make(chan nat, numRoutine)
@@ -348,8 +351,8 @@ func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine
 		}
 	}()
 
-	for i := 0; i < len(y); i += wordChunkSize {
-		wordLen := wordChunkSize
+	for i := 0; i < len(y); i += defaultWordChunkSize {
+		wordLen := defaultWordChunkSize
 		if i+wordLen > len(y) {
 			wordLen = len(y) - i
 		}

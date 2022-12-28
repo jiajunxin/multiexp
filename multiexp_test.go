@@ -153,7 +153,7 @@ func TestFourfoldExpParallel(t *testing.T) {
 	maxLen := (max.BitLen() / GetWidth()) + 1
 	fmt.Println("BitLen = ", max.BitLen())
 	fmt.Println("maxLen = ", maxLen)
-	table := PreCompute(g, N, maxLen)
+	table := NewPrecomputeTable(g, N, maxLen)
 	result := FourfoldExpWithPreComputeTableParallel(g, N, []*big.Int{x1, x2, x3, x4}, table)
 	var result2 big.Int
 	result2.Exp(g, x1, N)
@@ -178,7 +178,7 @@ func TestFourfoldExpParallel(t *testing.T) {
 	x3.SetInt64(4000000)
 	x4.SetInt64(5000000)
 	N.SetInt64(2000001)
-	table = PreCompute(g, N, maxLen)
+	table = NewPrecomputeTable(g, N, maxLen)
 	result = FourfoldExpWithPreComputeTableParallel(g, N, []*big.Int{x1, x2, x3, x4}, table)
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
@@ -201,19 +201,17 @@ func TestFourfoldExpParallel(t *testing.T) {
 func TestExpParallel(t *testing.T) {
 	randLimit := new(big.Int)
 	randLimit.SetInt64(1000000000)
-	//g, err := rand.Int(rand.Reader, randLimit)
-	//if err != nil {
-	//	t.Errorf(err.Error())
-	//}
-	//x, err := rand.Int(rand.Reader, randLimit)
-	//if err != nil {
-	//	t.Errorf(err.Error())
-	//}
-	g := big.NewInt(2)
-	x := big.NewInt(3)
+	g, err := rand.Int(rand.Reader, randLimit)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	x, err := rand.Int(rand.Reader, randLimit)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 	N := getValidModulus(rand.Reader, randLimit)
 	randLmtLen := (randLimit.BitLen() / GetWidth()) + 1
-	table := PreCompute(g, N, randLmtLen)
+	table := NewPrecomputeTable(g, N, randLmtLen)
 	type args struct {
 		x          *big.Int
 		y          *big.Int
