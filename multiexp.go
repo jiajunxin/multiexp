@@ -347,6 +347,7 @@ func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine
 			counter--
 			if counter == 0 {
 				resChan <- ret
+				break
 			}
 		}
 	}()
