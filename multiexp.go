@@ -325,14 +325,15 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine, wordChunkSize
 
 func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine, wordChunkSize int) nat {
 	power0, _, k0, numWords := montgomerySetup(x, m)
-	inputChan := make(chan input, numRoutine<<2)
+	pivotChan := make(chan pivots, numRoutine<<2)
 	outputChan := make(chan nat, numRoutine)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	for i := 0; i < numRoutine; i++ {
-		go table.routineExpNNMontgomery(ctx, power0, m, k0, numWords, inputChan, outputChan)
+		go table.routineExpNNMontgomery(ctx, power0, y, m, k0, pivotChan, outputChan)
 	}
 	resChan := make(chan nat)
+	temp := nat(nil).make(numWords)
 	go func() {
 		ret := nat(nil).make(numWords)
 		copy(ret, power0)
@@ -340,7 +341,6 @@ func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine
 		if len(y)%wordChunkSize != 0 {
 			counter++
 		}
-		temp := nat(nil).make(numWords)
 		for out := range outputChan {
 			temp = temp.montgomery(ret, out, m, k0, numWords)
 			ret, temp = temp, ret
@@ -351,22 +351,20 @@ func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine
 		}
 	}()
 
-	for i := 0; i < len(y); i += defaultWordChunkSize {
-		wordLen := defaultWordChunkSize
-		if i+wordLen > len(y) {
-			wordLen = len(y) - i
+	for i := 0; i < len(y); i += wordChunkSize {
+		right := i + wordChunkSize
+		if right > len(y) {
+			right = len(y)
 		}
-		inputChan <- input{
-			pivot:     i,
-			wordLen:   wordLen,
-			wordChunk: y[i : i+wordLen],
+		pivotChan <- pivots{
+			left:  i,
+			right: right,
 		}
 	}
 
 	ret := <-resChan
 	one := make(nat, numWords)
 	one[0] = 1
-	temp := nat(nil).make(numWords)
 	temp = temp.montgomery(ret, one, m, k0, numWords)
 	ret, temp = temp, ret
 	// final reduction
@@ -377,12 +375,10 @@ func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutine
 		}
 	}
 	// normalization
-	ret.norm()
-	return ret
+	return ret.norm()
 }
 
-type input struct {
-	pivot     int
-	wordLen   int
-	wordChunk nat
+type pivots struct {
+	left  int
+	right int
 }

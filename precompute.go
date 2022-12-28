@@ -73,28 +73,27 @@ func NewPrecomputeTable(base, modular *big.Int, tableSize int) *PreTable {
 	}
 }
 
-func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, m nat, k0 big.Word, numWords int,
-	inputChan chan input, outputChan chan nat) {
+func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat, k0 big.Word,
+	pivotChan chan pivots, outputChan chan nat) {
+	numWords := len(m)
 	temp := nat(nil).make(numWords)
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case in := <-inputChan:
+		case pivot := <-pivotChan:
 			ret := nat(nil).make(numWords)
 			copy(ret, power0)
-			for i := 0; i < in.wordLen; i++ {
+			for i := pivot.left; i < pivot.right; i++ {
 				for j := 0; j < _W; j++ {
-					if (in.wordChunk[i] & masks[j]) != masks[j] {
+					if (y[i] & masks[j]) != masks[j] {
 						continue
 					}
-					temp = temp.montgomery(ret, p.table[i+in.pivot][j], m, k0, numWords)
+					temp = temp.montgomery(ret, p.table[i][j], m, k0, numWords)
 					ret, temp = temp, ret
 				}
 			}
 			outputChan <- ret
-		default:
-			continue
 		}
 	}
 }
