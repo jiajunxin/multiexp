@@ -24,15 +24,7 @@ func gcw(a, b nat) (nat, nat, nat) {
 		aExtra[i] = a[i] - commonWords[i]
 		bExtra[i] = b[i] - commonWords[i]
 	}
-	if len(a) > len(b) {
-		for i := minWordLen; i < len(a); i++ {
-			aExtra[i] = a[i]
-		}
-	} else {
-		for i := minWordLen; i < len(b); i++ {
-			bExtra[i] = b[i]
-		}
-	}
+
 	return aExtra, bExtra, commonWords
 }
 

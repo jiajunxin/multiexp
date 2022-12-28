@@ -213,11 +213,12 @@ func TestExpParallel(t *testing.T) {
 	randLmtLen := (randLimit.BitLen() / GetWidth()) + 1
 	table := NewPrecomputeTable(g, N, randLmtLen)
 	type args struct {
-		x          *big.Int
-		y          *big.Int
-		m          *big.Int
-		preTable   *PreTable
-		numRoutine int
+		x             *big.Int
+		y             *big.Int
+		m             *big.Int
+		preTable      *PreTable
+		numRoutine    int
+		wordChunkSize int
 	}
 	tests := []struct {
 		name string
@@ -238,7 +239,7 @@ func TestExpParallel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ExpParallel(tt.args.x, tt.args.y, tt.args.m, tt.args.preTable, tt.args.numRoutine); !reflect.DeepEqual(got, tt.want) {
+			if got := ExpParallel(tt.args.x, tt.args.y, tt.args.m, tt.args.preTable, tt.args.numRoutine, tt.args.wordChunkSize); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ExpParallel() = %v, want %v", got, tt.want)
 			}
 		})

@@ -12,7 +12,8 @@ const numBits = 20000
 var (
 	benchRandLimit      *big.Int
 	onceBenchRandLimit  sync.Once
-	g, x, mod           *big.Int
+	g, mod              *big.Int
+	xList               []*big.Int
 	onceBenchParameters sync.Once
 	table               *PreTable
 	onceBenchTable      sync.Once
@@ -26,157 +27,120 @@ func getBenchRandLimit() *big.Int {
 	return benchRandLimit
 }
 
-func getBenchParameters() (*big.Int, *big.Int, *big.Int) {
+func getBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
 	onceBenchParameters.Do(func() {
-		g, x, mod = new(big.Int), new(big.Int), new(big.Int)
+		g, mod = new(big.Int), new(big.Int)
 		g, _ = rand.Int(rand.Reader, getBenchRandLimit())
-		x, _ = rand.Int(rand.Reader, getBenchRandLimit())
 		mod = getValidModulus(rand.Reader, getBenchRandLimit())
+		for i := 0; i < 4; i++ {
+			x := new(big.Int)
+			x, _ = rand.Int(rand.Reader, getBenchRandLimit())
+			xList = append(xList, x)
+		}
 	})
-	return g, x, mod
+	if numX < 0 || numX > len(xList) {
+		numX = len(xList)
+	}
+	return g, mod, xList[:numX]
 }
 
 func getBenchPrecomputeTable() *PreTable {
 	onceBenchTable.Do(func() {
-		g, _, N := getBenchParameters()
+		g, n, _ := getBenchParameters(0)
 		randLmtLen := (getBenchRandLimit().BitLen() / GetWidth()) + 1
-		table = NewPrecomputeTable(g, N, randLmtLen)
+		table = NewPrecomputeTable(g, n, randLmtLen)
 	})
 	return table
 }
 
 func BenchmarkOriginalDoubleExp(b *testing.B) {
-	g, err := rand.Int(rand.Reader, getBenchRandLimit())
-	if err != nil {
-		b.Errorf(err.Error())
-	}
-	x := make([]*big.Int, b.N+4)
-	for i := range x {
-		x[i], err = rand.Int(rand.Reader, getBenchRandLimit())
-		if err != nil {
-			b.Errorf(err.Error())
-		}
-	}
-	N := getValidModulus(rand.Reader, getBenchRandLimit())
+	g, n, xList := getBenchParameters(2)
 	b.ResetTimer()
 	var result big.Int
 	for i := 0; i < b.N; i++ {
-		result.Exp(g, x[i], N)
-		result.Exp(g, x[i+1], N)
+		result.Exp(g, xList[0], n)
+		result.Exp(g, xList[1], n)
 	}
 }
 
 func BenchmarkDoubleExp(b *testing.B) {
-	g, err := rand.Int(rand.Reader, getBenchRandLimit())
-	if err != nil {
-		b.Errorf(err.Error())
-	}
-	x := make([]*big.Int, b.N+4)
-	for i := range x {
-		x[i], err = rand.Int(rand.Reader, getBenchRandLimit())
-		if err != nil {
-			b.Errorf(err.Error())
-		}
-	}
-	N := getValidModulus(rand.Reader, getBenchRandLimit())
+	g, n, xList := getBenchParameters(2)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		DoubleExp(g, x[i], x[i+1], N)
+		DoubleExp(g, xList[0], xList[1], n)
 	}
 }
 
 func BenchmarkOriginalFourfoldExp(b *testing.B) {
-	g, err := rand.Int(rand.Reader, getBenchRandLimit())
-	if err != nil {
-		b.Errorf(err.Error())
-	}
-	x := make([]*big.Int, b.N+4)
-	for i := range x {
-		x[i], err = rand.Int(rand.Reader, getBenchRandLimit())
-		if err != nil {
-			b.Errorf(err.Error())
-		}
-	}
-	N := getValidModulus(rand.Reader, getBenchRandLimit())
+	g, n, xList := getBenchParameters(4)
 	b.ResetTimer()
 	var result big.Int
 	for i := 0; i < b.N; i++ {
-		result.Exp(g, x[i], N)
-		result.Exp(g, x[i+1], N)
-		result.Exp(g, x[i+2], N)
-		result.Exp(g, x[i+3], N)
+		result.Exp(g, xList[0], n)
+		result.Exp(g, xList[1], n)
+		result.Exp(g, xList[2], n)
+		result.Exp(g, xList[3], n)
 	}
 }
 
 func BenchmarkFourfoldExp(b *testing.B) {
-	g, err := rand.Int(rand.Reader, getBenchRandLimit())
-	if err != nil {
-		b.Errorf(err.Error())
-	}
-	x := make([]*big.Int, b.N+4)
-	for i := range x {
-		x[i], err = rand.Int(rand.Reader, getBenchRandLimit())
-		if err != nil {
-			b.Errorf(err.Error())
-		}
-	}
-	N := getValidModulus(rand.Reader, getBenchRandLimit())
+	g, n, xList := getBenchParameters(4)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		FourfoldExp(g, N, x[i:i+4])
+		FourfoldExp(g, n, xList)
 	}
 }
 
 func BenchmarkDefaultExp(b *testing.B) {
-	g, x, N := getBenchParameters()
+	g, n, xList := getBenchParameters(1)
 	result := new(big.Int)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result.Exp(g, x, N)
+		result.Exp(g, xList[0], n)
 	}
 }
 
 func BenchmarkExpParallel1(b *testing.B) {
-	g, x, N := getBenchParameters()
+	g, n, xList := getBenchParameters(1)
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 1, 0)
+		ExpParallel(g, xList[0], n, table, 1, 0)
 	}
 }
 
 func BenchmarkExpParallel4(b *testing.B) {
-	g, x, N := getBenchParameters()
+	g, n, xList := getBenchParameters(1)
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 4, 0)
+		ExpParallel(g, xList[0], n, table, 4, 0)
 	}
 }
 
 func BenchmarkExpParallel8(b *testing.B) {
-	g, x, N := getBenchParameters()
+	g, n, xList := getBenchParameters(1)
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 8, 0)
+		ExpParallel(g, xList[0], n, table, 8, 0)
 	}
 }
 
 func BenchmarkExpParallel16(b *testing.B) {
-	g, x, N := getBenchParameters()
+	g, n, xList := getBenchParameters(1)
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 16, 0)
+		ExpParallel(g, xList[0], n, table, 16, 0)
 	}
 }
 
 func BenchmarkExpParallel32(b *testing.B) {
-	g, x, N := getBenchParameters()
+	g, n, xList := getBenchParameters(1)
 	table := getBenchPrecomputeTable()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExpParallel(g, x, N, table, 32, 0)
+		ExpParallel(g, xList[0], n, table, 32, 0)
 	}
 }
