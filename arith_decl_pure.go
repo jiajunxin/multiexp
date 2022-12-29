@@ -7,8 +7,6 @@
 
 package multiexp
 
-import . "math/big"
-
 func addVV(z, x, y []Word) (c Word) {
 	return addVV_g(z, x, y)
 }

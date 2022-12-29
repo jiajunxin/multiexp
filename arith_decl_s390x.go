@@ -8,7 +8,6 @@
 package multiexp
 
 import "internal/cpu"
-import . "math/big"
 
 func addVV_check(z, x, y []Word) (c Word)
 func addVV_vec(z, x, y []Word) (c Word)

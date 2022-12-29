@@ -9,7 +9,7 @@ const defaultWordChunkSize = 2
 
 var (
 	big1  = big.NewInt(1)
-	masks = [_W]big.Word{}
+	masks = [_W]Word{}
 )
 
 func init() {
@@ -36,7 +36,7 @@ func DoubleExp(x, y1, y2, m *big.Int) []*big.Int {
 	if m.Bit(0) != 1 {
 		return defaultExp(x, m, []*big.Int{y1, y2})
 	}
-	xWords, y1Words, y2Words, mWords := x.Bits(), y1.Bits(), y2.Bits(), m.Bits()
+	xWords, y1Words, y2Words, mWords := newNat(x), newNat(y1), newNat(y2), newNat(m)
 	return doubleExpNNMontgomery(xWords, y1Words, y2Words, mWords)
 }
 
@@ -91,13 +91,13 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) []*big.Int {
 		}
 		// final normalization
 		mmValues[i].norm()
-		ret[i] = new(big.Int).SetBits(mmValues[i])
+		ret[i] = new(big.Int).SetBits(mmValues[i].intBits())
 	}
 
 	return ret
 }
 
-func montgomerySetup(x, m nat) (power0, power1 nat, k0 big.Word, numWords int) {
+func montgomerySetup(x, m nat) (power0, power1 nat, k0 Word, numWords int) {
 	numWords = len(m)
 	xx := x
 
@@ -146,7 +146,7 @@ func montgomerySetup(x, m nat) (power0, power1 nat, k0 big.Word, numWords int) {
 }
 
 // multiMontgomery calculates the modular montgomery exponent with result not normalized
-func multiMontgomery(m, power0, power1 nat, k0 big.Word, numWords int, yList []nat) []nat {
+func multiMontgomery(m, power0, power1 nat, k0 Word, numWords int, yList []nat) []nat {
 	// initialize each value to be 1 (Montgomery 1)
 	zList := make([]nat, len(yList))
 	for i := range zList {
@@ -189,7 +189,8 @@ func multiMontgomery(m, power0, power1 nat, k0 big.Word, numWords int, yList []n
 }
 
 // multiMontgomeryWithPreComputeTable calculates the modular montgomery exponent with result not normalized
-func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 big.Word, numWords int, yList []nat, preTable *PreTable) []nat {
+func multiMontgomeryWithPreComputeTable(m, power0, power1 nat, k0 Word,
+	numWords int, yList []nat, preTable *PreTable) []nat {
 	// initialize each value to be 1 (Montgomery 1)
 	z := make([]nat, len(yList))
 	for i := range z {
@@ -250,7 +251,7 @@ func FourfoldExp(x, m *big.Int, yList []*big.Int) []*big.Int {
 	if m.Bit(0) != 1 {
 		return defaultExp(x, m, yList)
 	}
-	xWords, mWords := x.Bits(), m.Bits()
+	xWords, mWords := newNat(x), newNat(m)
 	return fourfoldExpNNMontgomery(xWords, mWords, yList)
 }
 
@@ -260,7 +261,7 @@ func fourfoldExpNNMontgomery(x, m nat, y []*big.Int) []*big.Int {
 	power0, power1, k0, numWords := montgomerySetup(x, m)
 	// Zero round, find common bits of the four values
 	//fmt.Println("test here, len = ", len([]nat{y[0].abs, y[1].abs, y[2].abs, y[3].abs}))
-	gcwList := fourfoldGCW([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
+	gcwList := fourfoldGCW([]nat{newNat(y[0]), newNat(y[1]), newNat(y[2]), newNat(y[3])})
 	// First round, find common bits of the three values
 	var cm012, cm013, cm023, cm123 nat
 	cm012 = threefoldGCW(gcwList[:3])
@@ -290,7 +291,7 @@ func fourfoldExpNNMontgomery(x, m nat, y []*big.Int) []*big.Int {
 	// normalize and set value
 	for i := range z {
 		z[i].norm()
-		ret[i] = new(big.Int).SetBits(z[i])
+		ret[i] = new(big.Int).SetBits(z[i].intBits())
 	}
 	return ret
 }
@@ -318,9 +319,9 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine, wordChunkSize
 	if wordChunkSize <= 0 {
 		wordChunkSize = defaultWordChunkSize
 	}
-	xWords, yWords, mWords := x.Bits(), y.Bits(), m.Bits()
+	xWords, yWords, mWords := newNat(x), newNat(y), newNat(m)
 	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine, wordChunkSize)
-	return new(big.Int).SetBits(zWords)
+	return new(big.Int).SetBits(zWords.intBits())
 }
 
 func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutines, wordChunkSize int) nat {

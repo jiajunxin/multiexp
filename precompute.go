@@ -28,7 +28,7 @@ func NewPrecomputeTable(base, modular *big.Int, tableSize int) *PreTable {
 		return nil
 	}
 
-	x := base.Bits()
+	x := newNat(base)
 	if len(x) == 0 {
 		return nil
 	}
@@ -37,7 +37,7 @@ func NewPrecomputeTable(base, modular *big.Int, tableSize int) *PreTable {
 	}
 	// x > 1
 
-	m := modular.Bits() // m.abs may be nil for m == 0
+	m := newNat(modular) // m.abs may be nil for m == 0
 	_, power1, k0, numWords := montgomerySetup(x, m)
 	if numWords == 0 {
 		return nil
@@ -73,7 +73,7 @@ func NewPrecomputeTable(base, modular *big.Int, tableSize int) *PreTable {
 	}
 }
 
-func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat, k0 big.Word, wordChunkSize int,
+func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat, k0 Word, wordChunkSize int,
 	pivots chan int, outputs chan nat) {
 	numWords := len(m)
 	ret := nat(nil).make(numWords)
@@ -138,7 +138,7 @@ func FourfoldExpWithPreComputeTableParallel(x, m *big.Int, yList []*big.Int, pre
 	if preTable.Base.Cmp(x) != 0 || preTable.Modulus.Cmp(m) != 0 {
 		panic("The input table does not match the input")
 	}
-	xWords, mWords := x.Bits(), m.Bits()
+	xWords, mWords := newNat(x), newNat(m)
 	return fourfoldExpNNMontgomeryWithPreComputeTableParallel(xWords, mWords, yList, preTable)
 }
 
@@ -147,7 +147,7 @@ func FourfoldExpWithPreComputeTableParallel(x, m *big.Int, yList []*big.Int, pre
 func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*big.Int, preTable *PreTable) []*big.Int {
 	power0, _, k0, numWords := montgomerySetup(x, m)
 
-	gcwList := fourfoldGCW([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
+	gcwList := fourfoldGCW([]nat{newNat(y[0]), newNat(y[1]), newNat(y[2]), newNat(y[3])})
 
 	var cm012, cm013, cm023, cm123 nat
 	cm012 = threefoldGCW(gcwList[:3])
@@ -196,12 +196,12 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*big.Int, 
 	// normalize and set value
 	for i := range z {
 		z[i].norm()
-		ret[i] = new(big.Int).SetBits(z[i])
+		ret[i] = new(big.Int).SetBits(z[i].intBits())
 	}
 	return ret
 }
 
-func assembleAndConvert(prod *nat, set []nat, mm nat, k0 big.Word, numWords int) {
+func assembleAndConvert(prod *nat, set []nat, mm nat, k0 Word, numWords int) {
 	var temp nat
 	temp = temp.make(numWords)
 	var m nat
@@ -238,7 +238,7 @@ func assembleAndConvert(prod *nat, set []nat, mm nat, k0 big.Word, numWords int)
 	}
 }
 
-func assembleAndConvertWithWG(prod *nat, set []nat, mm nat, k0 big.Word, numWords int, wg *sync.WaitGroup) {
+func assembleAndConvertWithWG(prod *nat, set []nat, mm nat, k0 Word, numWords int, wg *sync.WaitGroup) {
 	var temp nat
 	temp = temp.make(numWords)
 	var m nat
@@ -277,7 +277,7 @@ func assembleAndConvertWithWG(prod *nat, set []nat, mm nat, k0 big.Word, numWord
 }
 
 // multiMontgomeryWithPreComputeTableWithChan calculates the modular montgomery exponent with result not normalized
-func multiMontgomeryWithPreComputeTableWithChan(m, power0 nat, k0 big.Word, numWords int,
+func multiMontgomeryWithPreComputeTableWithChan(m, power0 nat, k0 Word, numWords int,
 	y []nat, preTable *PreTable, c chan []nat) {
 	startingTime := time.Now().UTC()
 
