@@ -7,8 +7,6 @@
 
 package multiexp
 
-import . "math/big"
-
 // implemented in arith_$GOARCH.s
 func addVV(z, x, y []Word) (c Word)
 func subVV(z, x, y []Word) (c Word)

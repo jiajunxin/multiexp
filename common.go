@@ -2,7 +2,6 @@ package multiexp
 
 import (
 	"fmt"
-	. "math/big"
 )
 
 // GetWidth returns the width of uint in this system
