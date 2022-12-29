@@ -74,7 +74,7 @@ func NewPrecomputeTable(base, modular *big.Int, tableSize int) *PreTable {
 }
 
 func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat, k0 Word, wordChunkSize int,
-	pivots chan int, outputs chan nat) {
+	pivots <-chan int, outputs chan<- nat) {
 	numWords := len(m)
 	ret := nat(nil).make(numWords)
 	copy(ret, power0)
