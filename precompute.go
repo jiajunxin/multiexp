@@ -1,89 +1,57 @@
 package multiexp
 
 import (
+	"context"
 	"fmt"
-	. "math/big"
 	"sync"
 	"time"
+
+	"math/big"
 )
 
 type PreTable struct {
-	Base      *Int
-	Modulos   *Int
-	TableSize int
-	table     [][]nat
+	Base          *big.Int
+	Modulus       *big.Int
+	TableSize     int
+	table         [][]nat
+	wordChunkSize int
 }
 
-func PreCompute(base, modular *Int, tableSize int) *PreTable {
+func NewPrecomputeTable(base, modular *big.Int, tableSize int) *PreTable {
+	if tableSize <= 0 {
+		return nil
+	}
 	if base == nil || modular == nil {
 		return nil
 	}
 	if base.Sign() <= 0 || modular.Sign() <= 0 {
 		return nil
 	}
-	x := base.Bits()
+
+	x := newNat(base)
 	if len(x) == 0 {
 		return nil
 	}
-
 	if len(x) == 1 && x[0] == 1 {
 		return nil
 	}
-	if tableSize <= 0 {
-		return nil
-	}
-
 	// x > 1
 
-	m := modular.Bits() // m.abs may be nil for m == 0
-	numWords := len(m)
+	m := newNat(modular) // m.abs may be nil for m == 0
+	_, power1, k0, numWords := montgomerySetup(x, m)
 	if numWords == 0 {
 		return nil
 	}
 
-	var table PreTable
-	table.Base = base
-	table.Modulos = modular
-	table.TableSize = tableSize
-	// calculate the table
-	// Ideally the precomputations would be performed outside, and reused
-	// k0 = -m**-1 mod 2**_W. Algorithm from: Dumas, J.G. "On Newton–Raphson
-	// Iteration for Multiplicative Inverses Modulo Prime Powers".
-	k0 := 2 - m[0]
-	t := m[0] - 1
-	for i := 1; i < _W; i <<= 1 {
-		t *= t
-		k0 *= (t + 1)
-	}
-	k0 = -k0
-
-	// RR = 2**(2*_W*len(m)) mod m
-	RR := nat(nil).setWord(1)
-	zz1 := nat(nil).shl(RR, uint(2*numWords*_W))
-	_, RR = nat(nil).div(RR, zz1, m)
-	if len(RR) < numWords {
-		zz1 = zz1.make(numWords)
-		copy(zz1, RR)
-		RR = zz1
-	}
-
-	// one = 1, with equal length to that of m
-	one := make(nat, numWords)
-	one[0] = 1
-
-	// powers[i] contains x^i
-	var powers [2]nat
-	powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
-	powers[1] = powers[1].montgomery(x, RR, m, k0, numWords)
 	var temp, squaredPower nat
 	temp = temp.make(numWords)
 	squaredPower = squaredPower.make(numWords)
-	copy(squaredPower, powers[1])
-	pretable := make([][]nat, tableSize)
-	for i := range pretable {
-		pretable[i] = make([]nat, _W)
-		for j := range pretable[i] {
-			pretable[i][j] = pretable[i][j].make(numWords)
+	copy(squaredPower, power1)
+	preTable := make([][]nat, tableSize)
+	for i := range preTable {
+		preTable[i] = make([]nat, _W)
+		for j := range preTable[i] {
+			preTable[i][j] = preTable[i][j].make(numWords)
 		}
 	}
 
@@ -91,130 +59,117 @@ func PreCompute(base, modular *Int, tableSize int) *PreTable {
 		for j := 0; j < _W; j++ {
 			// montgomery must have the returned value not same as the input values
 			// we have to use this temp as the middle variable
-			copy(pretable[i][j], squaredPower)
+			copy(preTable[i][j], squaredPower)
 			temp = temp.montgomery(squaredPower, squaredPower, m, k0, numWords)
 			squaredPower, temp = temp, squaredPower
 		}
 	}
 
-	table.table = pretable
-	return &table
+	return &PreTable{
+		Base:      base,
+		Modulus:   modular,
+		TableSize: tableSize,
+		table:     preTable,
+	}
 }
 
-// FourFoldExp sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
-// In construction, many panic conditions. Use at your own risk!
-// Use at most 4 threads for now.
-// FourFoldExp is not a cryptographically constant-time operation.
-func FourFoldExpWithPreComputeTableParallel(x, m *Int, y []*Int, pretable *PreTable) []*Int {
-	xWords := x.Bits()
-	if len(xWords) == 0 {
-		return allIntOne(4)
-	}
-	if x.Sign() <= 0 || m.Sign() <= 0 {
-		panic("negative x or m as input for MultiExp")
-	}
-	if len(y)%2 != 0 {
-		panic("MultiExp does not support odd length of y for now!")
-	}
-	for i := range y {
-		if y[i].Sign() <= 0 {
-			panic("negative y[i] as input for MultiExp")
+func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat, k0 Word, wordChunkSize int,
+	pivots <-chan int, outputs chan<- nat) {
+	numWords := len(m)
+	ret := nat(nil).make(numWords)
+	copy(ret, power0)
+	temp := nat(nil).make(numWords)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case l := <-pivots:
+			r := l + wordChunkSize
+			if r > len(y) {
+				r = len(y)
+			}
+			for i := l; i < r; i++ {
+				for j := 0; j < _W; j++ {
+					if (y[i] & masks[j]) != masks[j] {
+						continue
+					}
+					temp = temp.montgomery(ret, p.table[i][j], m, k0, numWords)
+					ret, temp = temp, ret
+				}
+			}
+		default:
+			if len(pivots) == 0 {
+				outputs <- ret
+				return
+			}
 		}
 	}
-	if len(xWords) == 1 && xWords[0] == 1 {
-		return allIntOne(len(y))
+}
+
+// FourfoldExpWithPreComputeTableParallel sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
+// In construction, many panic conditions. Use at your own risk!
+// Use at most 4 threads for now.
+// FourfoldExpWithPreComputeTableParallel is not a cryptographically constant-time operation.
+func FourfoldExpWithPreComputeTableParallel(x, m *big.Int, yList []*big.Int, preTable *PreTable) []*big.Int {
+	if x.Sign() < 0 {
+		panic("invalid x: negative value")
 	}
-
-	// x > 1
-
+	if x.Cmp(big1) <= 0 {
+		return defaultExp(x, m, yList)
+	}
 	if m == nil {
-		return allIntOne(len(y))
+		panic("invalid m: nil value")
 	}
-	mWords := m.Bits() // m.abs may be nil for m == 0
-	if len(mWords) == 0 {
-		return allIntOne(len(y))
+	if m.Sign() <= 0 {
+		panic("invalid m: non-positive value")
 	}
-	// m > 1
-	// y > 0
-
-	if mWords[0]&1 != 1 {
-		panic("The input modular is not a odd number")
+	if len(yList) != 4 {
+		panic("invalid yList element size")
+	}
+	for i := range yList {
+		if yList[i].Sign() <= 0 {
+			panic("invalid yList: non-positive value")
+		}
+	}
+	if m.Bit(0) != 1 {
+		panic("The input modular is not an odd number")
 	}
 	// check if the table is same as the input parameters
-	if pretable.Base.Cmp(x) != 0 || pretable.Modulos.Cmp(m) != 0 {
+	if preTable.Base.Cmp(x) != 0 || preTable.Modulus.Cmp(m) != 0 {
 		panic("The input table does not match the input")
 	}
-	return fourfoldExpNNMontgomeryWithPreComputeTableParallel(xWords, mWords, y, pretable)
+	xWords, mWords := newNat(x), newNat(m)
+	return fourfoldExpNNMontgomeryWithPreComputeTableParallel(xWords, mWords, yList, preTable)
 }
 
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
 // Uses Montgomery representation.
-func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pretable *PreTable) []*Int {
-	numWords := len(m)
+func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*big.Int, preTable *PreTable) []*big.Int {
+	power0, _, k0, numWords := montgomerySetup(x, m)
 
-	// We want the lengths of x and m to be equal.
-	// It is OK if x >= m as long as len(x) == len(m).
-	if len(x) > numWords {
-		_, x = nat(nil).div(nil, x, m)
-		// Note: now len(x) <= numWords, not guaranteed ==.
-	}
-	if len(x) < numWords {
-		rr := make(nat, numWords)
-		copy(rr, x)
-		x = rr
-	}
-
-	// Ideally the precomputations would be performed outside, and reused
-	// k0 = -m**-1 mod 2**_W. Algorithm from: Dumas, J.G. "On Newton–Raphson
-	// Iteration for Multiplicative Inverses Modulo Prime Powers".
-	k0 := 2 - m[0]
-	t := m[0] - 1
-	for i := 1; i < _W; i <<= 1 {
-		t *= t
-		k0 *= (t + 1)
-	}
-	k0 = -k0
-
-	// RR = 2**(2*_W*len(m)) mod m
-	RR := nat(nil).setWord(1)
-	zz1 := nat(nil).shl(RR, uint(2*numWords*_W))
-	_, RR = nat(nil).div(RR, zz1, m)
-	if len(RR) < numWords {
-		zz1 = zz1.make(numWords)
-		copy(zz1, RR)
-		RR = zz1
-	}
-	// one = 1, with equal length to that of m
-	one := make(nat, numWords)
-	one[0] = 1
-	// powers[i] contains x^i
-	var powers [2]nat
-	powers[0] = powers[0].montgomery(one, RR, m, k0, numWords)
-	powers[1] = powers[1].montgomery(x, RR, m, k0, numWords)
-
-	yNew := fourfoldGcb([]nat{y[0].Bits(), y[1].Bits(), y[2].Bits(), y[3].Bits()})
+	gcwList := fourfoldGCW([]nat{newNat(y[0]), newNat(y[1]), newNat(y[2]), newNat(y[3])})
 
 	var cm012, cm013, cm023, cm123 nat
-	cm012 = threefoldGcb(yNew[:3])
-	cm013 = threefoldGcb([]nat{yNew[0], yNew[1], yNew[3]})
-	cm023 = threefoldGcb([]nat{yNew[0], yNew[2], yNew[3]})
-	cm123 = threefoldGcb(yNew[1:4])
+	cm012 = threefoldGCW(gcwList[:3])
+	cm013 = threefoldGCW([]nat{gcwList[0], gcwList[1], gcwList[3]})
+	cm023 = threefoldGCW([]nat{gcwList[0], gcwList[2], gcwList[3]})
+	cm123 = threefoldGCW(gcwList[1:4])
 
 	var cm01, cm23, cm02, cm13, cm03, cm12 nat
-	yNew[0], yNew[1], cm01 = gcb(yNew[0], yNew[1])
-	yNew[2], yNew[3], cm23 = gcb(yNew[2], yNew[3])
-	yNew[0], yNew[2], cm02 = gcb(yNew[0], yNew[2])
-	yNew[1], yNew[3], cm13 = gcb(yNew[1], yNew[3])
-	yNew[0], yNew[3], cm03 = gcb(yNew[0], yNew[3])
-	yNew[1], yNew[2], cm12 = gcb(yNew[1], yNew[2])
+	gcwList[0], gcwList[1], cm01 = gcw(gcwList[0], gcwList[1])
+	gcwList[2], gcwList[3], cm23 = gcw(gcwList[2], gcwList[3])
+	gcwList[0], gcwList[2], cm02 = gcw(gcwList[0], gcwList[2])
+	gcwList[1], gcwList[3], cm13 = gcw(gcwList[1], gcwList[3])
+	gcwList[0], gcwList[3], cm03 = gcw(gcwList[0], gcwList[3])
+	gcwList[1], gcwList[2], cm12 = gcw(gcwList[1], gcwList[2])
 	c0 := make(chan []nat)
 	c1 := make(chan []nat)
 	c2 := make(chan []nat)
 	c3 := make(chan []nat)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, yNew[:4], pretable, c0)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{yNew[4], cm012, cm013, cm023}, pretable, c1)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm123, cm01, cm23, cm02}, pretable, c2)
-	go multimontgomeryWithPreComputeTableWithChan(RR, m, powers[0], powers[1], k0, numWords, []nat{cm13, cm03, cm12}, pretable, c3)
+	go multiMontgomeryWithPreComputeTableWithChan(m, power0, k0, numWords, gcwList[:4], preTable, c0)
+	go multiMontgomeryWithPreComputeTableWithChan(m, power0, k0, numWords, []nat{gcwList[4], cm012, cm013, cm023}, preTable, c1)
+	go multiMontgomeryWithPreComputeTableWithChan(m, power0, k0, numWords, []nat{cm123, cm01, cm23, cm02}, preTable, c2)
+	go multiMontgomeryWithPreComputeTableWithChan(m, power0, k0, numWords, []nat{cm13, cm03, cm12}, preTable, c3)
 
 	z1 := <-c0
 	z2 := <-c1
@@ -224,27 +179,24 @@ func fourfoldExpNNMontgomeryWithPreComputeTableParallel(x, m nat, y []*Int, pret
 	z = append(z, z3...)
 	z = append(z, z4...)
 	//                                                                    0-4	  5     6      7       8     9     10     11    12    13    14
-	//z := multimontgomeryWithPreComputeTable(RR, m, powers[0], powers[1], k0, numWords, append(yNew, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12), pretable)
+	//z := multiMontgomeryWithPreComputeTable(RR, m, powers[0], powers[1], k0, numWords, append(gcwList, cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12), preTable)
 	// calculate the actual values
 
 	var wg sync.WaitGroup
 	wg.Add(4)
-	go assembleAndConvertWithwg(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords, &wg)
-	go assembleAndConvertWithwg(&z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords, &wg)
-	go assembleAndConvertWithwg(&z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords, &wg)
-	go assembleAndConvertWithwg(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords, &wg)
+	go assembleAndConvertWithWG(&z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords, &wg)
+	go assembleAndConvertWithWG(&z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords, &wg)
+	go assembleAndConvertWithWG(&z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords, &wg)
+	go assembleAndConvertWithWG(&z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords, &wg)
 	wg.Wait()
 
 	z = z[:4]
-	ret := make([]*Int, 4)
-	for i := range ret {
-		ret[i] = new(Int)
-	}
 
-	// normlize and set value
+	ret := make([]*big.Int, 4)
+	// normalize and set value
 	for i := range z {
 		z[i].norm()
-		ret[i].SetBits(z[i])
+		ret[i] = new(big.Int).SetBits(z[i].intBits())
 	}
 	return ret
 }
@@ -275,7 +227,7 @@ func assembleAndConvert(prod *nat, set []nat, mm nat, k0 Word, numWords int) {
 		// Common case is m has high bit set; in that case,
 		// since zz is the same length as m, there can be just
 		// one multiple of m to remove. Just subtract.
-		// We think that the subtract should be sufficient in general,
+		// We think that the subtraction should be sufficient in general,
 		// so do that unconditionally, but double-check,
 		// in case our beliefs are wrong.
 		// The div is not expected to be reached.
@@ -286,7 +238,7 @@ func assembleAndConvert(prod *nat, set []nat, mm nat, k0 Word, numWords int) {
 	}
 }
 
-func assembleAndConvertWithwg(prod *nat, set []nat, mm nat, k0 Word, numWords int, wg *sync.WaitGroup) {
+func assembleAndConvertWithWG(prod *nat, set []nat, mm nat, k0 Word, numWords int, wg *sync.WaitGroup) {
 	var temp nat
 	temp = temp.make(numWords)
 	var m nat
@@ -312,7 +264,7 @@ func assembleAndConvertWithwg(prod *nat, set []nat, mm nat, k0 Word, numWords in
 		// Common case is m has high bit set; in that case,
 		// since zz is the same length as m, there can be just
 		// one multiple of m to remove. Just subtract.
-		// We think that the subtract should be sufficient in general,
+		// We think that the subtraction should be sufficient in general,
 		// so do that unconditionally, but double-check,
 		// in case our beliefs are wrong.
 		// The div is not expected to be reached.
@@ -324,8 +276,9 @@ func assembleAndConvertWithwg(prod *nat, set []nat, mm nat, k0 Word, numWords in
 	wg.Done()
 }
 
-// multimontgomery calculates the modular montgomery exponent with result not normlized
-func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Word, numWords int, y []nat, pretable *PreTable, c chan []nat) {
+// multiMontgomeryWithPreComputeTableWithChan calculates the modular montgomery exponent with result not normalized
+func multiMontgomeryWithPreComputeTableWithChan(m, power0 nat, k0 Word, numWords int,
+	y []nat, preTable *PreTable, c chan []nat) {
 	startingTime := time.Now().UTC()
 
 	// initialize each value to be 1 (Montgomery 1)
@@ -335,12 +288,6 @@ func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Wo
 		copy(z[i], power0)
 	}
 
-	var squaredPower, temp nat
-	squaredPower = squaredPower.make(numWords)
-	temp = temp.make(numWords)
-	copy(squaredPower, power1)
-	//	fmt.Println("squaredPower = ", squaredPower.String())
-
 	maxLen := 1
 	for i := range y {
 		if len(y[i]) > maxLen {
@@ -348,16 +295,19 @@ func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Wo
 		}
 	}
 
+	temp := nat(nil).make(numWords)
 	for i := 0; i < maxLen; i++ {
 		for j := 0; j < _W; j++ {
-			mask := Word(1 << j)
+			//mask := Word(1 << j)
 			for k := range y {
-				if len(y[k]) > i {
-					if (y[k][i] & mask) == mask {
-						temp = temp.montgomery(z[k], pretable.table[i][j], m, k0, numWords)
-						z[k], temp = temp, z[k]
-					}
+				if len(y[k]) <= i {
+					continue
 				}
+				if (y[k][i] & masks[j]) != masks[j] {
+					continue
+				}
+				temp = temp.montgomery(z[k], preTable.table[i][j], m, k0, numWords)
+				z[k], temp = temp, z[k]
 			}
 			// // montgomery must have the returned value not same as the input values
 			// // we have to use this temp as the middle variable
@@ -366,7 +316,7 @@ func multimontgomeryWithPreComputeTableWithChan(RR, m, power0, power1 nat, k0 Wo
 		}
 	}
 	duration := time.Now().UTC().Sub(startingTime)
-	fmt.Println("inside multimontgomeryWithPreComputeTableWithChan, len(y) = ", len(y))
-	fmt.Printf("Running multimontgomeryWithPreComputeTableWithChan Takes [%.3f] Seconds \n", duration.Seconds())
+	fmt.Println("inside multiMontgomeryWithPreComputeTableWithChan, len(y) = ", len(y))
+	fmt.Printf("Running multiMontgomeryWithPreComputeTableWithChan Takes [%.3f] Seconds \n", duration.Seconds())
 	c <- z
 }

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	. "math/big"
+	"reflect"
 	"testing"
 )
 
-func getValidModulus(r io.Reader, max *Int) *Int {
+func getValidModulus(r io.Reader, max *big.Int) *big.Int {
 	for true {
 		N, err := rand.Int(r, max)
 		if err != nil {
@@ -23,7 +23,7 @@ func getValidModulus(r io.Reader, max *Int) *Int {
 }
 
 func TestDoubleExp(t *testing.T) {
-	var max Int
+	var max big.Int
 	max.SetInt64(1000000)
 
 	g, err := rand.Int(rand.Reader, &max)
@@ -42,7 +42,7 @@ func TestDoubleExp(t *testing.T) {
 	N := getValidModulus(rand.Reader, &max)
 
 	result := DoubleExp(g, x1, x2, N)
-	var result2 Int
+	var result2 big.Int
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for DoubleExp")
@@ -79,8 +79,8 @@ func TestFourfoldExp(t *testing.T) {
 	}
 	N := getValidModulus(rand.Reader, &max)
 
-	result := FourFoldExp(g, N, []*Int{x1, x2, x3, x4})
-	var result2 Int
+	result := FourfoldExp(g, N, []*big.Int{x1, x2, x3, x4})
+	var result2 big.Int
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
@@ -103,7 +103,7 @@ func TestFourfoldExp(t *testing.T) {
 	x3.SetInt64(4000000)
 	x4.SetInt64(5000000)
 	N.SetInt64(2000001)
-	result = FourFoldExp(g, N, []*Int{x1, x2, x3, x4})
+	result = FourfoldExp(g, N, []*big.Int{x1, x2, x3, x4})
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
@@ -153,9 +153,9 @@ func TestFourfoldExpParallel(t *testing.T) {
 	maxLen := (max.BitLen() / GetWidth()) + 1
 	fmt.Println("BitLen = ", max.BitLen())
 	fmt.Println("maxLen = ", maxLen)
-	table := PreCompute(g, N, maxLen)
-	result := FourFoldExpWithPreComputeTableParallel(g, N, []*Int{x1, x2, x3, x4}, table)
-	var result2 Int
+	table := NewPrecomputeTable(g, N, maxLen)
+	result := FourfoldExpWithPreComputeTableParallel(g, N, []*big.Int{x1, x2, x3, x4}, table)
+	var result2 big.Int
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExpParallel")
@@ -178,8 +178,8 @@ func TestFourfoldExpParallel(t *testing.T) {
 	x3.SetInt64(4000000)
 	x4.SetInt64(5000000)
 	N.SetInt64(2000001)
-	table = PreCompute(g, N, maxLen)
-	result = FourFoldExpWithPreComputeTableParallel(g, N, []*Int{x1, x2, x3, x4}, table)
+	table = NewPrecomputeTable(g, N, maxLen)
+	result = FourfoldExpWithPreComputeTableParallel(g, N, []*big.Int{x1, x2, x3, x4}, table)
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExpParallel")
@@ -195,5 +195,53 @@ func TestFourfoldExpParallel(t *testing.T) {
 	result2.Exp(g, x4, N)
 	if result2.Cmp(result[3]) != 0 {
 		t.Errorf("Wrong result for FourfoldExpParallel")
+	}
+}
+
+func TestExpParallel(t *testing.T) {
+	//randLimit := new(big.Int)
+	//randLimit.SetInt64(1000000000)
+	//g, err := rand.Int(rand.Reader, randLimit)
+	//if err != nil {
+	//	t.Errorf(err.Error())
+	//}
+	//x, err := rand.Int(rand.Reader, randLimit)
+	//if err != nil {
+	//	t.Errorf(err.Error())
+	//}
+	//n := getValidModulus(rand.Reader, randLimit)
+	g, n, xList := getBenchParameters(1)
+	table := getBenchPrecomputeTable()
+	type args struct {
+		x             *big.Int
+		y             *big.Int
+		m             *big.Int
+		preTable      *PreTable
+		numRoutine    int
+		wordChunkSize int
+	}
+	tests := []struct {
+		name string
+		args args
+		want *big.Int
+	}{
+		{
+			name: "TestExpParallel",
+			args: args{
+				x:          g,
+				y:          xList[0],
+				m:          n,
+				preTable:   table,
+				numRoutine: 4,
+			},
+			want: new(big.Int).Exp(g, xList[0], n),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ExpParallel(tt.args.x, tt.args.y, tt.args.m, tt.args.preTable, tt.args.numRoutine, tt.args.wordChunkSize); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ExpParallel() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

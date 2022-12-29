@@ -11,7 +11,6 @@
 package multiexp
 
 import (
-	. "math/big"
 	"math/bits"
 )
 
@@ -19,8 +18,6 @@ import (
 // type Word uint
 
 const (
-	_S = _W / 8 // word size in bytes
-
 	_W = bits.UintSize // word size in bits
 	_B = 1 << _W       // digit base
 	_M = _B - 1        // digit mask
