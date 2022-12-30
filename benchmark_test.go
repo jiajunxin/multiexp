@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const numBits = 20000
+const numTestBits = 20000
 
 var (
 	benchRandLimit      *big.Int
@@ -22,7 +22,7 @@ var (
 func getBenchRandLimit() *big.Int {
 	onceBenchRandLimit.Do(func() {
 		benchRandLimit = new(big.Int).SetInt64(1)
-		benchRandLimit.Lsh(benchRandLimit, numBits)
+		benchRandLimit.Lsh(benchRandLimit, numTestBits)
 	})
 	return benchRandLimit
 }
@@ -47,7 +47,7 @@ func getBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
 func getBenchPrecomputeTable() *PreTable {
 	onceBenchTable.Do(func() {
 		g, n, _ := getBenchParameters(0)
-		randLmtLen := (getBenchRandLimit().BitLen() / GetWidth()) + 1
+		randLmtLen := (getBenchRandLimit().BitLen() / _W) + 1
 		table = NewPrecomputeTable(g, n, randLmtLen)
 	})
 	return table
@@ -65,9 +65,10 @@ func BenchmarkOriginalDoubleExp(b *testing.B) {
 
 func BenchmarkDoubleExp(b *testing.B) {
 	g, n, xList := getBenchParameters(2)
+	x2 := (*[2]*big.Int)(xList)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		DoubleExp(g, xList[0], xList[1], n)
+		DoubleExp(g, *x2, n)
 	}
 }
 
@@ -85,9 +86,10 @@ func BenchmarkOriginalFourfoldExp(b *testing.B) {
 
 func BenchmarkFourfoldExp(b *testing.B) {
 	g, n, xList := getBenchParameters(4)
+	x4 := (*[4]*big.Int)(xList)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		FourfoldExp(g, n, xList)
+		FourfoldExp(g, n, *x4)
 	}
 }
 

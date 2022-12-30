@@ -39,15 +39,15 @@ func TestDoubleExp(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 
-	N := getValidModulus(rand.Reader, &max)
+	n := getValidModulus(rand.Reader, &max)
 
-	result := DoubleExp(g, x1, x2, N)
+	result := DoubleExp(g, [2]*big.Int{x1, x2}, n)
 	var result2 big.Int
-	result2.Exp(g, x1, N)
+	result2.Exp(g, x1, n)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for DoubleExp")
 	}
-	result2.Exp(g, x2, N)
+	result2.Exp(g, x2, n)
 	if result2.Cmp(result[1]) != 0 {
 		t.Errorf("Wrong result for DoubleExp")
 	}
@@ -77,23 +77,23 @@ func TestFourfoldExp(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	N := getValidModulus(rand.Reader, &max)
+	n := getValidModulus(rand.Reader, &max)
 
-	result := FourfoldExp(g, N, []*big.Int{x1, x2, x3, x4})
+	result := FourfoldExp(g, n, [4]*big.Int{x1, x2, x3, x4})
 	var result2 big.Int
-	result2.Exp(g, x1, N)
+	result2.Exp(g, x1, n)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
-	result2.Exp(g, x2, N)
+	result2.Exp(g, x2, n)
 	if result2.Cmp(result[1]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
-	result2.Exp(g, x3, N)
+	result2.Exp(g, x3, n)
 	if result2.Cmp(result[2]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
-	result2.Exp(g, x4, N)
+	result2.Exp(g, x4, n)
 	if result2.Cmp(result[3]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
@@ -102,21 +102,21 @@ func TestFourfoldExp(t *testing.T) {
 	x2.SetInt64(3000000)
 	x3.SetInt64(4000000)
 	x4.SetInt64(5000000)
-	N.SetInt64(2000001)
-	result = FourfoldExp(g, N, []*big.Int{x1, x2, x3, x4})
-	result2.Exp(g, x1, N)
+	n.SetInt64(2000001)
+	result = FourfoldExp(g, n, [4]*big.Int{x1, x2, x3, x4})
+	result2.Exp(g, x1, n)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
-	result2.Exp(g, x2, N)
+	result2.Exp(g, x2, n)
 	if result2.Cmp(result[1]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
-	result2.Exp(g, x3, N)
+	result2.Exp(g, x3, n)
 	if result2.Cmp(result[2]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
-	result2.Exp(g, x4, N)
+	result2.Exp(g, x4, n)
 	if result2.Cmp(result[3]) != 0 {
 		t.Errorf("Wrong result for FourfoldExp")
 	}
@@ -150,11 +150,11 @@ func TestFourfoldExpParallel(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 	N := getValidModulus(rand.Reader, &max)
-	maxLen := (max.BitLen() / GetWidth()) + 1
+	maxLen := (max.BitLen() / _W) + 1
 	fmt.Println("BitLen = ", max.BitLen())
 	fmt.Println("maxLen = ", maxLen)
 	table := NewPrecomputeTable(g, N, maxLen)
-	result := FourfoldExpWithPreComputeTableParallel(g, N, []*big.Int{x1, x2, x3, x4}, table)
+	result := FourfoldExpPrecomputedParallel(g, N, [4]*big.Int{x1, x2, x3, x4}, table)
 	var result2 big.Int
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
@@ -179,7 +179,7 @@ func TestFourfoldExpParallel(t *testing.T) {
 	x4.SetInt64(5000000)
 	N.SetInt64(2000001)
 	table = NewPrecomputeTable(g, N, maxLen)
-	result = FourfoldExpWithPreComputeTableParallel(g, N, []*big.Int{x1, x2, x3, x4}, table)
+	result = FourfoldExpPrecomputedParallel(g, N, [4]*big.Int{x1, x2, x3, x4}, table)
 	result2.Exp(g, x1, N)
 	if result2.Cmp(result[0]) != 0 {
 		t.Errorf("Wrong result for FourfoldExpParallel")
