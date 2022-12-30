@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const numBits = 20000
+const numTestBits = 20000
 
 var (
 	benchRandLimit      *big.Int
@@ -22,7 +22,7 @@ var (
 func getBenchRandLimit() *big.Int {
 	onceBenchRandLimit.Do(func() {
 		benchRandLimit = new(big.Int).SetInt64(1)
-		benchRandLimit.Lsh(benchRandLimit, numBits)
+		benchRandLimit.Lsh(benchRandLimit, numTestBits)
 	})
 	return benchRandLimit
 }

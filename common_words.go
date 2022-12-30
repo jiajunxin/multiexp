@@ -30,10 +30,7 @@ func gcw(a, b nat) (nat, nat, nat) {
 
 // fourfoldGCW inputs four positive integer a, b, c, d and calculates the greatest common words
 // the last element in output is the common word slice
-func fourfoldGCW(input []nat) []nat {
-	if len(input) != 4 {
-		panic("fourfoldGCW require the input size to be 4")
-	}
+func fourfoldGCW(input [4]nat) [5]nat {
 	maxWordLen := 0
 	minWordLen := len(input[0])
 	for i := 0; i < 4; i++ {
@@ -45,35 +42,32 @@ func fourfoldGCW(input []nat) []nat {
 		}
 	}
 
-	var output [5]nat
+	var outputs [5]nat
 	for i := 0; i < 4; i++ {
-		output[i] = output[i].make(len(input[i]))
+		outputs[i] = outputs[i].make(len(input[i]))
 	}
-	output[4] = output[4].make(minWordLen)
+	outputs[4] = outputs[4].make(minWordLen)
 	for i := 0; i < minWordLen; i++ {
-		output[4][i] = input[0][i] & input[1][i] & input[2][i] & input[3][i]
-		output[0][i] = input[0][i] - output[4][i]
-		output[1][i] = input[1][i] - output[4][i]
-		output[2][i] = input[2][i] - output[4][i]
-		output[3][i] = input[3][i] - output[4][i]
+		outputs[4][i] = input[0][i] & input[1][i] & input[2][i] & input[3][i]
+		outputs[0][i] = input[0][i] - outputs[4][i]
+		outputs[1][i] = input[1][i] - outputs[4][i]
+		outputs[2][i] = input[2][i] - outputs[4][i]
+		outputs[3][i] = input[3][i] - outputs[4][i]
 	}
 	for i := 0; i < 4; i++ {
-		if len(output[i]) > minWordLen {
-			for j := minWordLen; j < len(output[i]); j++ {
-				output[i][j] = input[i][j]
+		if len(outputs[i]) > minWordLen {
+			for j := minWordLen; j < len(outputs[i]); j++ {
+				outputs[i][j] = input[i][j]
 			}
 		}
 	}
 
-	return output[:]
+	return outputs
 }
 
 // threefoldGcb inputs three positive integer a, b, c and calculates the greatest common words
 // the last element in output is the common word slice
-func threefoldGCW(input []nat) nat {
-	if len(input) != 3 {
-		panic("threefoldGCW require the input size to be 3")
-	}
+func threefoldGCW(input [3]nat) nat {
 	maxWordLen := 0
 	minWordLen := len(input[0])
 	for i := 0; i < 3; i++ {
@@ -85,13 +79,12 @@ func threefoldGCW(input []nat) nat {
 		}
 	}
 
-	var output nat
-	output = output.make(minWordLen)
+	output := nat(nil).make(minWordLen)
 	for i := 0; i < minWordLen; i++ {
 		output[i] = input[0][i] & input[1][i] & input[2][i]
 		input[0][i] = input[0][i] - output[i]
 		input[1][i] = input[1][i] - output[i]
 		input[2][i] = input[2][i] - output[i]
 	}
-	return output[:]
+	return output
 }
