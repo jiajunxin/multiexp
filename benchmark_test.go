@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-const numTestBits = 200000
-const numTestGroupBits = 2000
+const numTestBits = 20000
+const numTestGroupBits = 2048
 
 var (
 	benchRandLimit          *big.Int

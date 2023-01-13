@@ -2,8 +2,6 @@ package multiexp
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"math/big"
 )
@@ -225,7 +223,7 @@ func assembleAndConvertChan(prod nat, set []nat, mm nat, k0 Word, numWords int, 
 // multiMontgomeryPrecomputedChan calculates the modular montgomery exponent with result not normalized
 func multiMontgomeryPrecomputedChan(m, power0 nat, k0 Word, numWords int,
 	y []nat, preTable *PreTable, c chan []nat) {
-	startingTime := time.Now().UTC()
+	//startingTime := time.Now().UTC()
 
 	// initialize each value to be 1 (Montgomery 1)
 	z := make([]nat, len(y))
@@ -256,8 +254,8 @@ func multiMontgomeryPrecomputedChan(m, power0 nat, k0 Word, numWords int,
 			}
 		}
 	}
-	duration := time.Now().UTC().Sub(startingTime)
-	fmt.Println("inside multiMontgomeryPrecomputedChan, len(y) = ", len(y))
-	fmt.Printf("Running multiMontgomeryPrecomputedChan Takes [%.3f] Seconds \n", duration.Seconds())
+	//duration := time.Now().UTC().Sub(startingTime)
+	// fmt.Println("inside multiMontgomeryPrecomputedChan, len(y) = ", len(y))
+	// fmt.Printf("Running multiMontgomeryPrecomputedChan Takes [%.3f] Seconds \n", duration.Seconds())
 	c <- z
 }
