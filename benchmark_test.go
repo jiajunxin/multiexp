@@ -7,16 +7,19 @@ import (
 	"testing"
 )
 
-const numTestBits = 20000
+const numTestBits = 200000
+const numTestGroupBits = 2000
 
 var (
-	benchRandLimit      *big.Int
-	onceBenchRandLimit  sync.Once
-	g, mod              *big.Int
-	xList               []*big.Int
-	onceBenchParameters sync.Once
-	table               *PreTable
-	onceBenchTable      sync.Once
+	benchRandLimit          *big.Int
+	benchRandGroupLimit     *big.Int
+	onceBenchRandLimit      sync.Once
+	onceBenchRandGroupLimit sync.Once
+	g, mod                  *big.Int
+	xList                   []*big.Int
+	onceBenchParameters     sync.Once
+	table                   *PreTable
+	onceBenchTable          sync.Once
 )
 
 func getBenchRandLimit() *big.Int {
@@ -27,11 +30,19 @@ func getBenchRandLimit() *big.Int {
 	return benchRandLimit
 }
 
+func getBenchGroupLimit() *big.Int {
+	onceBenchRandGroupLimit.Do(func() {
+		benchRandGroupLimit = new(big.Int).SetInt64(1)
+		benchRandGroupLimit.Lsh(benchRandGroupLimit, numTestGroupBits)
+	})
+	return benchRandGroupLimit
+}
+
 func getBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
 	onceBenchParameters.Do(func() {
 		g, mod = new(big.Int), new(big.Int)
-		g, _ = rand.Int(rand.Reader, getBenchRandLimit())
-		mod = getValidModulus(rand.Reader, getBenchRandLimit())
+		g, _ = rand.Int(rand.Reader, getBenchGroupLimit())
+		mod = getValidModulus(rand.Reader, getBenchGroupLimit())
 		for i := 0; i < 4; i++ {
 			x := new(big.Int)
 			x, _ = rand.Int(rand.Reader, getBenchRandLimit())
