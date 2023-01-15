@@ -38,6 +38,23 @@ func getBenchGroupLimit() *big.Int {
 	return benchRandGroupLimit
 }
 
+// this is used to test different random g, mod and exp
+// We separate it because we also need the static case for the precomputations
+func getDifferentBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
+	g, mod = new(big.Int), new(big.Int)
+	g, _ = rand.Int(rand.Reader, getBenchGroupLimit())
+	mod = getValidModulus(rand.Reader, getBenchGroupLimit())
+	for i := 0; i < 4; i++ {
+		x := new(big.Int)
+		x, _ = rand.Int(rand.Reader, getBenchRandLimit())
+		xList = append(xList, x)
+	}
+	if numX < 0 || numX > len(xList) {
+		numX = len(xList)
+	}
+	return g, mod, xList[:numX]
+}
+
 func getBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
 	onceBenchParameters.Do(func() {
 		g, mod = new(big.Int), new(big.Int)
@@ -65,42 +82,50 @@ func getBenchPrecomputeTable() *PreTable {
 }
 
 func BenchmarkOriginalDoubleExp(b *testing.B) {
-	g, n, xList := getBenchParameters(2)
 	b.ResetTimer()
 	var result big.Int
 	for i := 0; i < b.N; i++ {
+		g, n, xList := getDifferentBenchParameters(2)
+		b.StartTimer()
 		result.Exp(g, xList[0], n)
 		result.Exp(g, xList[1], n)
+		b.StopTimer()
 	}
 }
 
 func BenchmarkDoubleExp(b *testing.B) {
-	g, n, xList := getBenchParameters(2)
-	x2 := (*[2]*big.Int)(xList)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		g, n, xList := getDifferentBenchParameters(2)
+		x2 := (*[2]*big.Int)(xList)
+		b.StartTimer()
 		DoubleExp(g, *x2, n)
+		b.StopTimer()
 	}
 }
 
 func BenchmarkOriginalFourfoldExp(b *testing.B) {
-	g, n, xList := getBenchParameters(4)
 	b.ResetTimer()
 	var result big.Int
 	for i := 0; i < b.N; i++ {
+		g, n, xList := getDifferentBenchParameters(4)
+		b.StartTimer()
 		result.Exp(g, xList[0], n)
 		result.Exp(g, xList[1], n)
 		result.Exp(g, xList[2], n)
 		result.Exp(g, xList[3], n)
+		b.StopTimer()
 	}
 }
 
 func BenchmarkFourfoldExp(b *testing.B) {
-	g, n, xList := getBenchParameters(4)
-	x4 := (*[4]*big.Int)(xList)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		g, n, xList := getDifferentBenchParameters(4)
+		x4 := (*[4]*big.Int)(xList)
+		b.StartTimer()
 		FourfoldExp(g, n, *x4)
+		b.StopTimer()
 	}
 }
 
