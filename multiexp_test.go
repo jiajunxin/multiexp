@@ -2,7 +2,6 @@ package multiexp
 
 import (
 	"crypto/rand"
-	"fmt"
 	"io"
 	"math/big"
 	"reflect"
@@ -151,8 +150,8 @@ func TestFourfoldExpParallel(t *testing.T) {
 	}
 	N := getValidModulus(rand.Reader, &max)
 	maxLen := (max.BitLen() / _W) + 1
-	fmt.Println("BitLen = ", max.BitLen())
-	fmt.Println("maxLen = ", maxLen)
+	// fmt.Println("BitLen = ", max.BitLen())
+	// fmt.Println("maxLen = ", maxLen)
 	table := NewPrecomputeTable(g, N, maxLen)
 	result := FourfoldExpPrecomputedParallel(g, N, [4]*big.Int{x1, x2, x3, x4}, table)
 	var result2 big.Int
