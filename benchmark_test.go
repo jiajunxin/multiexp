@@ -40,10 +40,7 @@ func getBenchGroupLimit() *big.Int {
 
 // this is used to test different random g, mod and exp
 // We separate it because we also need the static case for the precomputations
-func getDifferentBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
-	gRan, modRan := new(big.Int), new(big.Int)
-	gRan, _ = rand.Int(rand.Reader, getBenchGroupLimit())
-	modRan = getValidModulus(rand.Reader, getBenchGroupLimit())
+func getDifferentBenchParameters(numX int) []*big.Int {
 	var xListRan []*big.Int
 	for i := 0; i < 4; i++ {
 		x := new(big.Int)
@@ -53,7 +50,7 @@ func getDifferentBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
 	if numX < 0 || numX > len(xList) {
 		numX = len(xList)
 	}
-	return gRan, modRan, xListRan[:numX]
+	return xListRan[:numX]
 }
 
 func getBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
@@ -83,49 +80,53 @@ func getBenchPrecomputeTable() *PreTable {
 }
 
 func BenchmarkOriginalDoubleExp(b *testing.B) {
+	g, n, _ := getBenchParameters(1)
 	b.ResetTimer()
 	var result big.Int
 	for i := 0; i < b.N; i++ {
-		gRan, nRan, xListRan := getDifferentBenchParameters(2)
+		xListRan := getDifferentBenchParameters(2)
 		b.StartTimer()
-		result.Exp(gRan, xListRan[0], nRan)
-		result.Exp(gRan, xListRan[1], nRan)
+		result.Exp(g, xListRan[0], n)
+		result.Exp(g, xListRan[1], n)
 		b.StopTimer()
 	}
 }
 
 func BenchmarkDoubleExp(b *testing.B) {
+	g, n, _ := getBenchParameters(1)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		gRan, nRan, xListRan := getDifferentBenchParameters(2)
+		xListRan := getDifferentBenchParameters(2)
 		x2 := (*[2]*big.Int)(xListRan)
 		b.StartTimer()
-		DoubleExp(gRan, *x2, nRan)
+		DoubleExp(g, *x2, n)
 		b.StopTimer()
 	}
 }
 
 func BenchmarkOriginalFourfoldExp(b *testing.B) {
+	g, n, _ := getBenchParameters(1)
 	b.ResetTimer()
 	var result big.Int
 	for i := 0; i < b.N; i++ {
-		gRan, nRan, xListRan := getDifferentBenchParameters(4)
+		xListRan := getDifferentBenchParameters(4)
 		b.StartTimer()
-		result.Exp(gRan, xListRan[0], nRan)
-		result.Exp(gRan, xListRan[1], nRan)
-		result.Exp(gRan, xListRan[2], nRan)
-		result.Exp(gRan, xListRan[3], nRan)
+		result.Exp(g, xListRan[0], n)
+		result.Exp(g, xListRan[1], n)
+		result.Exp(g, xListRan[2], n)
+		result.Exp(g, xListRan[3], n)
 		b.StopTimer()
 	}
 }
 
 func BenchmarkFourfoldExp(b *testing.B) {
+	g, n, _ := getBenchParameters(1)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		gRan, nRan, xListRan := getDifferentBenchParameters(4)
+		xListRan := getDifferentBenchParameters(4)
 		x4 := (*[4]*big.Int)(xListRan)
 		b.StartTimer()
-		FourfoldExp(gRan, nRan, *x4)
+		FourfoldExp(g, n, *x4)
 		b.StopTimer()
 	}
 }
