@@ -121,6 +121,82 @@ func TestFourfoldExp(t *testing.T) {
 	}
 }
 
+func TestFourfoldExpwithTable(t *testing.T) {
+	var max big.Int
+	// We need max to be larger to make the precompute actually work.
+	max.SetInt64(1000000000) //2^30
+	max.Mul(&max, &max)      //2^60
+	max.Mul(&max, &max)      //2^120
+
+	g, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	x1, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	x2, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	x3, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	x4, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	N := getValidModulus(rand.Reader, &max)
+	maxLen := (max.BitLen() / _W) + 1
+	// fmt.Println("BitLen = ", max.BitLen())
+	// fmt.Println("maxLen = ", maxLen)
+	table := NewPrecomputeTable(g, N, maxLen)
+	result := FourfoldExpPrecomputed(g, N, [4]*big.Int{x1, x2, x3, x4}, table)
+	var result2 big.Int
+	result2.Exp(g, x1, N)
+	if result2.Cmp(result[0]) != 0 {
+		t.Errorf("Wrong result for TestFourfoldExpwithTable")
+	}
+	result2.Exp(g, x2, N)
+	if result2.Cmp(result[1]) != 0 {
+		t.Errorf("Wrong result for TestFourfoldExpwithTable")
+	}
+	result2.Exp(g, x3, N)
+	if result2.Cmp(result[2]) != 0 {
+		t.Errorf("Wrong result for TestFourfoldExpwithTable")
+	}
+	result2.Exp(g, x4, N)
+	if result2.Cmp(result[3]) != 0 {
+		t.Errorf("Wrong result for TestFourfoldExpwithTable")
+	}
+	g.SetInt64(1000000)
+	x1.SetInt64(2000000)
+	x2.SetInt64(3000000)
+	x3.SetInt64(4000000)
+	x4.SetInt64(5000000)
+	N.SetInt64(2000001)
+	table = NewPrecomputeTable(g, N, maxLen)
+	result = FourfoldExpPrecomputed(g, N, [4]*big.Int{x1, x2, x3, x4}, table)
+	result2.Exp(g, x1, N)
+	if result2.Cmp(result[0]) != 0 {
+		t.Errorf("Wrong result for TestFourfoldExpwithTable")
+	}
+	result2.Exp(g, x2, N)
+	if result2.Cmp(result[1]) != 0 {
+		t.Errorf("Wrong result for TestFourfoldExpwithTable")
+	}
+	result2.Exp(g, x3, N)
+	if result2.Cmp(result[2]) != 0 {
+		t.Errorf("Wrong result for TestFourfoldExpwithTable")
+	}
+	result2.Exp(g, x4, N)
+	if result2.Cmp(result[3]) != 0 {
+		t.Errorf("Wrong result for TestFourfoldExpwithTable")
+	}
+}
+
 func TestFourfoldExpParallel(t *testing.T) {
 	var max big.Int
 	// We need max to be larger to make the precompute actually work.

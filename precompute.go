@@ -136,6 +136,39 @@ func FourfoldExpPrecomputedParallel(x, m *big.Int, y4 [4]*big.Int, preTable *Pre
 	return fourfoldExpNNMontgomeryPrecomputedParallel(xWords, mWords, y4, preTable)
 }
 
+// FourfoldExpPrecomputed sets z1 = x**y1 mod |m|, z2 = x**y2 mod |m| ... (i.e. the sign of m is ignored), and returns z1, z2...
+// In construction, many panic conditions. Use at your own risk!
+// Use single thread
+// FourfoldExpPrecomputed is not a cryptographically constant-time operation.
+func FourfoldExpPrecomputed(x, m *big.Int, y4 [4]*big.Int, preTable *PreTable) [4]*big.Int {
+	if x.Sign() < 0 {
+		panic("invalid x: negative value")
+	}
+	if x.Cmp(big1) <= 0 {
+		return defaultExp4(x, m, y4)
+	}
+	if m == nil {
+		panic("invalid m: nil value")
+	}
+	if m.Sign() <= 0 {
+		panic("invalid m: non-positive value")
+	}
+	for i := range y4 {
+		if y4[i].Sign() <= 0 {
+			panic("invalid y4: non-positive value")
+		}
+	}
+	if m.Bit(0) != 1 {
+		panic("The input modular is not an odd number")
+	}
+	// check if the table is same as the input parameters
+	if preTable.Base.Cmp(x) != 0 || preTable.Modulus.Cmp(m) != 0 {
+		panic("The input table does not match the input")
+	}
+	xWords, mWords := newNat(x), newNat(m)
+	return fourfoldExpNNMontgomeryPrecomputed(xWords, mWords, y4, preTable)
+}
+
 // fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
 // Uses Montgomery representation.
 func fourfoldExpNNMontgomeryPrecomputedParallel(x, m nat, y4 [4]*big.Int, preTable *PreTable) [4]*big.Int {
@@ -185,6 +218,59 @@ func fourfoldExpNNMontgomeryPrecomputedParallel(x, m nat, y4 [4]*big.Int, preTab
 	// normalize and set value
 	for i := range ret {
 		output := <-outputs[i]
+		output.norm()
+		ret[i] = new(big.Int).SetBits(output.intBits())
+	}
+	return ret
+}
+
+// fourfoldExpNNMontgomery calculates x**y1 mod m and x**y2 mod m x**y3 mod m and x**y4 mod m
+// Uses Montgomery representation.
+func fourfoldExpNNMontgomeryPrecomputed(x, m nat, y4 [4]*big.Int, preTable *PreTable) [4]*big.Int {
+	power0, _, k0, numWords := montgomerySetup(x, m)
+
+	gcwList := fourfoldGCW([4]nat{newNat(y4[0]), newNat(y4[1]), newNat(y4[2]), newNat(y4[3])})
+
+	var cm012, cm013, cm023, cm123 nat
+	cm012 = threefoldGCW(*(*[3]nat)(gcwList[:3]))
+	cm013 = threefoldGCW([3]nat{gcwList[0], gcwList[1], gcwList[3]})
+	cm023 = threefoldGCW([3]nat{gcwList[0], gcwList[2], gcwList[3]})
+	cm123 = threefoldGCW(*(*[3]nat)(gcwList[1:4]))
+
+	var cm01, cm23, cm02, cm13, cm03, cm12 nat
+	gcwList[0], gcwList[1], cm01 = gcw(gcwList[0], gcwList[1])
+	gcwList[2], gcwList[3], cm23 = gcw(gcwList[2], gcwList[3])
+	gcwList[0], gcwList[2], cm02 = gcw(gcwList[0], gcwList[2])
+	gcwList[1], gcwList[3], cm13 = gcw(gcwList[1], gcwList[3])
+	gcwList[0], gcwList[3], cm03 = gcw(gcwList[0], gcwList[3])
+	gcwList[1], gcwList[2], cm12 = gcw(gcwList[1], gcwList[2])
+	// var c4 [4]chan []nat
+	// for i := range c4 {
+	// 	c4[i] = make(chan []nat)
+	// }
+	// multiMontgomeryPrecomputedChan(m, power0, k0, numWords, gcwList[:4], preTable, c4[0])
+	// multiMontgomeryPrecomputedChan(m, power0, k0, numWords, []nat{gcwList[4], cm012, cm013, cm023}, preTable, c4[1])
+	// multiMontgomeryPrecomputedChan(m, power0, k0, numWords, []nat{cm123, cm01, cm23, cm02}, preTable, c4[2])
+	// multiMontgomeryPrecomputedChan(m, power0, k0, numWords, []nat{cm13, cm03, cm12}, preTable, c4[3])
+
+	// var z []nat
+	// for i := range c4 {
+	// 	z = append(z, <-c4[i]...)
+	// }
+	z := multiMontgomeryPrecomputed(m, power0, k0, numWords, append(gcwList[:], cm012, cm013, cm023, cm123, cm01, cm23, cm02, cm13, cm03, cm12), preTable)
+	// calculate the actual values
+
+	var outputs [4]nat
+
+	outputs[0] = assembleAndConvert(z[0], []nat{z[4], z[5], z[6], z[7], z[9], z[11], z[13]}, m, k0, numWords)
+	outputs[1] = assembleAndConvert(z[1], []nat{z[4], z[5], z[6], z[8], z[9], z[12], z[14]}, m, k0, numWords)
+	outputs[2] = assembleAndConvert(z[2], []nat{z[4], z[5], z[7], z[8], z[10], z[11], z[14]}, m, k0, numWords)
+	outputs[3] = assembleAndConvert(z[3], []nat{z[4], z[6], z[7], z[8], z[10], z[12], z[13]}, m, k0, numWords)
+
+	var ret [4]*big.Int
+	// normalize and set value
+	for i := range ret {
+		output := outputs[i]
 		output.norm()
 		ret[i] = new(big.Int).SetBits(output.intBits())
 	}

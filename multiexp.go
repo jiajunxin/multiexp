@@ -199,7 +199,7 @@ func multiMontgomery(m, power0, power1 nat, k0 Word, numWords int, yList []nat) 
 }
 
 // multiMontgomeryPrecomputed calculates the modular montgomery exponent with result not normalized
-func multiMontgomeryPrecomputed(m, power0, power1 nat, k0 Word,
+func multiMontgomeryPrecomputed(m, power0 nat, k0 Word,
 	numWords int, yList []nat, preTable *PreTable) []nat {
 	// initialize each value to be 1 (Montgomery 1)
 	z := make([]nat, len(yList))
@@ -208,10 +208,8 @@ func multiMontgomeryPrecomputed(m, power0, power1 nat, k0 Word,
 		copy(z[i], power0)
 	}
 
-	var squaredPower, temp nat
-	squaredPower = squaredPower.make(numWords)
+	var temp nat
 	temp = temp.make(numWords)
-	copy(squaredPower, power1)
 	//	fmt.Println("squaredPower = ", squaredPower.String())
 
 	maxLen := 1
