@@ -131,6 +131,21 @@ func BenchmarkFourfoldExp(b *testing.B) {
 	}
 }
 
+func BenchmarkFourfoldExpWithTable(b *testing.B) {
+	g, n, _ := getBenchParameters(1)
+
+	maxLen := (numTestBits / _W) + 1
+	table := NewPrecomputeTable(g, n, maxLen)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		xListRan := getDifferentBenchParameters(4)
+		x4 := (*[4]*big.Int)(xListRan)
+		b.StartTimer()
+		FourfoldExpPrecomputed(g, n, *x4, table)
+		b.StopTimer()
+	}
+}
+
 func BenchmarkDefaultExp(b *testing.B) {
 	g, n, xList := getBenchParameters(1)
 	result := new(big.Int)
