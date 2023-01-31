@@ -2,6 +2,7 @@ package multiexp
 
 import (
 	"crypto/rand"
+	"fmt"
 	"io"
 	"math/big"
 	"reflect"
@@ -53,7 +54,7 @@ func TestDoubleExp(t *testing.T) {
 }
 
 func TestDoubleExpwithProd(t *testing.T) {
-	setSize := 600
+	setSize := 999
 	var max, prod1, prod2 big.Int
 	max.SetInt64(1000000)
 	prod1.SetInt64(1)
@@ -82,6 +83,12 @@ func TestDoubleExpwithProd(t *testing.T) {
 	n := getValidModulus(rand.Reader, &max)
 
 	result := DoubleExp(g, [2]*big.Int{&prod1, &prod2}, n)
+	var two, temp1, temp2 big.Int
+	two.SetInt64(2)
+	temp1.Mod(&prod1, &two)
+	temp2.Mod(&prod2, &two)
+	fmt.Println("temp1 = ", temp1.String())
+	fmt.Println("temp2 = ", temp2.String())
 	var result2 big.Int
 	result2.Exp(g, &prod1, n)
 	if result2.Cmp(result[0]) != 0 {
@@ -94,7 +101,7 @@ func TestDoubleExpwithProd(t *testing.T) {
 }
 
 func TestDoubleExpwithProd2(t *testing.T) {
-	setSize := 910
+	setSize := 999
 	var max, prod1, prod2 big.Int
 	max.SetInt64(1000000)
 	prod1.SetInt64(1)
