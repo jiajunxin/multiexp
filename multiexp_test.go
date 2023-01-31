@@ -52,6 +52,47 @@ func TestDoubleExp(t *testing.T) {
 	}
 }
 
+func TestDoubleExpwithProd(t *testing.T) {
+	setSize := 501
+	var max, prod1, prod2 big.Int
+	max.SetInt64(1000000)
+	prod1.SetInt64(1)
+	prod2.SetInt64(1)
+
+	g, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	for i := 0; i < setSize; i++ {
+		x1, err := rand.Int(rand.Reader, &max)
+		if err != nil {
+			t.Errorf(err.Error())
+		}
+		prod1.Mul(&prod1, x1)
+	}
+
+	for i := 0; i < setSize; i++ {
+		x2, err := rand.Int(rand.Reader, &max)
+		if err != nil {
+			t.Errorf(err.Error())
+		}
+		prod2.Mul(&prod2, x2)
+	}
+
+	n := getValidModulus(rand.Reader, &max)
+
+	result := DoubleExp(g, [2]*big.Int{&prod1, &prod2}, n)
+	var result2 big.Int
+	result2.Exp(g, &prod1, n)
+	if result2.Cmp(result[0]) != 0 {
+		t.Errorf("Wrong result for DoubleExp")
+	}
+	result2.Exp(g, &prod2, n)
+	if result2.Cmp(result[1]) != 0 {
+		t.Errorf("Wrong result for DoubleExp")
+	}
+}
+
 func TestFourfoldExp(t *testing.T) {
 	var max big.Int
 	max.SetInt64(1000000)
