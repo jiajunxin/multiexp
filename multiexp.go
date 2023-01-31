@@ -2,6 +2,7 @@ package multiexp
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 )
 
@@ -43,6 +44,7 @@ func DoubleExp(x *big.Int, y2 [2]*big.Int, m *big.Int) [2]*big.Int {
 // defaultExp2 uses the default Exp function of big int to handle the edge cases that cannot be handled by DoubleExp in
 // this library or cannot benefit from this library in terms of performance
 func defaultExp2(x, m *big.Int, y2 [2]*big.Int) [2]*big.Int {
+	fmt.Println("something wrong here, get into defaultExp2")
 	var ret [2]*big.Int
 	for i := range y2 {
 		ret[i] = new(big.Int).Exp(x, y2[i], m)
