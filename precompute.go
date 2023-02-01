@@ -2,8 +2,10 @@ package multiexp
 
 import (
 	"context"
+	"fmt"
 
 	"math/big"
+	"math/bits"
 )
 
 // PreTable is the pre-computation table for multi-exponentiation
@@ -12,6 +14,11 @@ type PreTable struct {
 	Modulus   *big.Int
 	TableSize int
 	table     [][_W]nat
+}
+
+func GetTableSize(table *PreTable) {
+	fmt.Println("The table size = ", table.TableSize, "rows, ", bits.UintSize, " columns, each element size = ", bits.UintSize)
+	fmt.Println("Totally ", table.TableSize*bits.UintSize*bits.UintSize/8, "bytes")
 }
 
 // NewPrecomputeTable creates a pre-computation table for multi-exponentiation
