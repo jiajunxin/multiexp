@@ -526,19 +526,3 @@ func (z nat) shl(x nat, s uint) nat {
 
 	return z.norm()
 }
-
-func (z nat) and(x, y nat) nat {
-	m := len(x)
-	n := len(y)
-	if m > n {
-		m = n
-	}
-	// m <= n
-
-	z = z.make(m)
-	for i := 0; i < m; i++ {
-		z[i] = x[i] & y[i]
-	}
-
-	return z.norm()
-}
