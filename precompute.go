@@ -242,7 +242,7 @@ func fourfoldExpNNMontgomeryPrecomputed(x, m nat, y4 [4]*big.Int, preTable *PreT
 	cm012 = threefoldGCW(*(*[3]nat)(gcwList[:3]))
 	cm013 = threefoldGCW([3]nat{gcwList[0], gcwList[1], gcwList[3]})
 	cm023 = threefoldGCW([3]nat{gcwList[0], gcwList[2], gcwList[3]})
-	cm123 = threefoldGCW(*(*[3]nat)(gcwList[1:4]))
+	cm123 = threefoldGCW([3]nat{gcwList[1], gcwList[2], gcwList[3]})
 
 	var cm01, cm23, cm02, cm13, cm03, cm12 nat
 	gcwList[0], gcwList[1], cm01 = gcw(gcwList[0], gcwList[1])
