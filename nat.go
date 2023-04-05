@@ -46,10 +46,6 @@ func newNat(n *big.Int) nat {
 	for i, d := range zBits {
 		z[i] = Word(d)
 	}
-	if z[0] == 0 {
-		// n is not normalized
-		z = z[1:]
-	}
 	return z
 }
 
@@ -61,10 +57,6 @@ func (z nat) intBits() []big.Word {
 	zBits := make([]big.Word, len(z))
 	for i, d := range z {
 		zBits[i] = big.Word(d)
-	}
-	if zBits[0] == 0 {
-		// z is not normalized
-		zBits = zBits[1:]
 	}
 	return zBits
 }

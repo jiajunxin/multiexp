@@ -10,7 +10,7 @@ import (
 )
 
 func getValidModulus(r io.Reader, max *big.Int) *big.Int {
-	for true {
+	for {
 		N, err := rand.Int(r, max)
 		if err != nil {
 			panic(err)
@@ -19,7 +19,6 @@ func getValidModulus(r io.Reader, max *big.Int) *big.Int {
 			return N
 		}
 	}
-	return nil
 }
 
 func TestDoubleExp(t *testing.T) {
@@ -56,7 +55,7 @@ func TestDoubleExp(t *testing.T) {
 func TestDoubleExpwithProd(t *testing.T) {
 	setSize := 999
 	var max, prod1, prod2 big.Int
-	max.SetInt64(1000000)
+	max.SetInt64(100000)
 	prod1.SetInt64(1)
 	prod2.SetInt64(1)
 
