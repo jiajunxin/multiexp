@@ -2,7 +2,6 @@ package multiexp
 
 import (
 	"crypto/rand"
-	"fmt"
 	"io"
 	"math/big"
 	"reflect"
@@ -86,8 +85,6 @@ func TestDoubleExpwithProd(t *testing.T) {
 	two.SetInt64(2)
 	temp1.Mod(&prod1, &two)
 	temp2.Mod(&prod2, &two)
-	fmt.Println("temp1 = ", temp1.String())
-	fmt.Println("temp2 = ", temp2.String())
 	var result2 big.Int
 	result2.Exp(g, &prod1, n)
 	if result2.Cmp(result[0]) != 0 {
