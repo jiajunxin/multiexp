@@ -270,7 +270,7 @@ func fourfoldExpNNMontgomery(x, m nat, y [4]*big.Int) [4]*big.Int {
 	gcwList := fourfoldGCW([4]nat{newNat(y[0]), newNat(y[1]), newNat(y[2]), newNat(y[3])})
 	// First round, find common bits of the three values
 	var cm012, cm013, cm023, cm123 nat
-	cm012 = threefoldGCW(*(*[3]nat)(gcwList[:3]))
+	cm012 = threefoldGCW([3]nat{gcwList[0], gcwList[1], gcwList[2]})
 	cm013 = threefoldGCW([3]nat{gcwList[0], gcwList[1], gcwList[3]})
 	cm023 = threefoldGCW([3]nat{gcwList[0], gcwList[2], gcwList[3]})
 	cm123 = threefoldGCW([3]nat{gcwList[1], gcwList[2], gcwList[3]})

@@ -184,7 +184,7 @@ func fourfoldExpNNMontgomeryPrecomputedParallel(x, m nat, y4 [4]*big.Int, preTab
 	gcwList := fourfoldGCW([4]nat{newNat(y4[0]), newNat(y4[1]), newNat(y4[2]), newNat(y4[3])})
 
 	var cm012, cm013, cm023, cm123 nat
-	cm012 = threefoldGCW(*(*[3]nat)(gcwList[:3]))
+	cm012 = threefoldGCW([3]nat{gcwList[0], gcwList[1], gcwList[2]})
 	cm013 = threefoldGCW([3]nat{gcwList[0], gcwList[1], gcwList[3]})
 	cm023 = threefoldGCW([3]nat{gcwList[0], gcwList[2], gcwList[3]})
 	cm123 = threefoldGCW([3]nat{gcwList[1], gcwList[2], gcwList[3]})
@@ -239,7 +239,7 @@ func fourfoldExpNNMontgomeryPrecomputed(x, m nat, y4 [4]*big.Int, preTable *PreT
 	gcwList := fourfoldGCW([4]nat{newNat(y4[0]), newNat(y4[1]), newNat(y4[2]), newNat(y4[3])})
 
 	var cm012, cm013, cm023, cm123 nat
-	cm012 = threefoldGCW(*(*[3]nat)(gcwList[:3]))
+	cm012 = threefoldGCW([3]nat{gcwList[0], gcwList[1], gcwList[2]})
 	cm013 = threefoldGCW([3]nat{gcwList[0], gcwList[1], gcwList[3]})
 	cm023 = threefoldGCW([3]nat{gcwList[0], gcwList[2], gcwList[3]})
 	cm123 = threefoldGCW([3]nat{gcwList[1], gcwList[2], gcwList[3]})
