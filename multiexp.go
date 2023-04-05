@@ -111,7 +111,6 @@ func doubleExpNNMontgomery(x, y1, y2, m nat) [2]*big.Int {
 
 func montgomerySetup(x, m nat) (power0, power1 nat, k0 Word, numWords int) {
 	numWords = len(m)
-	xx := x
 
 	// We want the lengths of x and m to be equal.
 	// It is OK if x >= m as long as len(x) == len(m).
@@ -153,7 +152,7 @@ func montgomerySetup(x, m nat) (power0, power1 nat, k0 Word, numWords int) {
 	// power0 = x**0
 	power0 = power0.montgomery(one, RR, m, k0, numWords)
 	// power1 = x**1
-	power1 = power1.montgomery(xx, RR, m, k0, numWords)
+	power1 = power1.montgomery(x, RR, m, k0, numWords)
 	return
 }
 
