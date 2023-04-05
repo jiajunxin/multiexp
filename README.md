@@ -30,13 +30,13 @@ The following table showcases our results in terms of function completion time a
 | precomputeFourfoldExponent | 5.5                          | 36.9                          | 359.7                          | 3596.5                           |
 
 Looking at the specific functions, first, we calculate $g^{x_1} \mod N$ and $g^{x_2} \mod N$ ''naively'' by calculating each exponent separately. 
-We refer to this as the $2\times$NaiveExponent function and we compare it against our optimized version, DoubleExponent.
-Similarly, for random values $x_1,x_2,x_3,x_4$, we calculate $g^{x_1} \mod N$, $g^{x_2} \mod N$, $g^{x_3} \mod N$ and $g^{x_4} \mod N$ ``naively'' and we refer to this function as $4\times$NaiveExponent. 
+We refer to this as the 2×NaiveExponent function and we compare it against our optimized version, DoubleExponent.
+Similarly, for random values $x_1,x_2,x_3,x_4$, we calculate $g^{x_1} \mod N$, $g^{x_2} \mod N$, $g^{x_3} \mod N$ and $g^{x_4} \mod N$ ``naively'' and we refer to this function as 4×NaiveExponent. 
 We compare it against our optimized FourfoldExponent function.
 The result of 2,000 bits exponent is the average of 10,000 runs, the result of 20,000 bits exponent is the average of 1,000 runs,
 the result of 200,000 bits exponent is the average of 100 runs and the result of 2,000,000 bits exponent is the average of 10 runs.
 
-We observe that with our optimizations DoubleExponent is $\approx30\%$ and FourfoldExponent $\approx60\%$ faster than their original counterparts.
+We observe that with our optimizations DoubleExponent is around 30% faster and FourfoldExponent around 60% faster than their original counterparts.
 Additionally, we report the performance of FourfoldExponent when combined with a precomputation table that includes a precomputation of every single bit; we refer to this as the precomputeFourfoldExponent function.
 Precomputation tables with more elaborate settings (e.g., including four combinations of every two precomputed bits) lead to faster calculation and larger table sizes.
 We list the precomputation table size with respect to the maximum exponent bits supported.
