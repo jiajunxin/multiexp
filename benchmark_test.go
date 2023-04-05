@@ -43,8 +43,7 @@ func getBenchGroupLimit() *big.Int {
 func getDifferentBenchParameters(numX int) []*big.Int {
 	var xListRan []*big.Int
 	for i := 0; i < 4; i++ {
-		x := new(big.Int)
-		x, _ = rand.Int(rand.Reader, getBenchRandLimit())
+		x, _ := rand.Int(rand.Reader, getBenchRandLimit())
 		xListRan = append(xListRan, x)
 	}
 	if numX < 0 || numX > len(xList) {
@@ -59,8 +58,7 @@ func getBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
 		g, _ = rand.Int(rand.Reader, getBenchGroupLimit())
 		mod = getValidModulus(rand.Reader, getBenchGroupLimit())
 		for i := 0; i < 4; i++ {
-			x := new(big.Int)
-			x, _ = rand.Int(rand.Reader, getBenchRandLimit())
+			x, _ := rand.Int(rand.Reader, getBenchRandLimit())
 			xList = append(xList, x)
 		}
 	})
@@ -97,9 +95,9 @@ func BenchmarkDoubleExp(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		xListRan := getDifferentBenchParameters(2)
-		x2 := (*[2]*big.Int)(xListRan)
+		x2 := ([2]*big.Int{xListRan[0], xListRan[1]})
 		b.StartTimer()
-		DoubleExp(g, *x2, n)
+		DoubleExp(g, x2, n)
 		b.StopTimer()
 	}
 }
@@ -124,9 +122,9 @@ func BenchmarkFourfoldExp(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		xListRan := getDifferentBenchParameters(4)
-		x4 := (*[4]*big.Int)(xListRan)
+		x4 := ([4]*big.Int{xListRan[0], xListRan[1], xListRan[2], xListRan[3]})
 		b.StartTimer()
-		FourfoldExp(g, n, *x4)
+		FourfoldExp(g, n, x4)
 		b.StopTimer()
 	}
 }
@@ -139,9 +137,9 @@ func BenchmarkFourfoldExpWithTable(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		xListRan := getDifferentBenchParameters(4)
-		x4 := (*[4]*big.Int)(xListRan)
+		x4 := ([4]*big.Int{xListRan[0], xListRan[1], xListRan[2], xListRan[3]})
 		b.StartTimer()
-		FourfoldExpPrecomputed(g, n, *x4, table)
+		FourfoldExpPrecomputed(g, n, x4, table)
 		b.StopTimer()
 	}
 }
