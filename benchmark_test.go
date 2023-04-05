@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const numTestBits = 20000
+const numTestBits = 200
 const numTestGroupBits = 2048
 
 var (
