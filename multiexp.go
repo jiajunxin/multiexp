@@ -137,12 +137,12 @@ func montgomerySetup(x, m nat) (power0, power1 nat, k0 Word, numWords int) {
 
 	// RR = 2**(2*_W*len(m)) mod m
 	RR := nat(nil).setWord(1)
-	zz1 := nat(nil).shl(RR, uint(2*numWords*_W))
-	_, RR = nat(nil).div(RR, zz1, m)
+	zz := nat(nil).shl(RR, uint(2*numWords*_W))
+	_, RR = nat(nil).div(RR, zz, m)
 	if len(RR) < numWords {
-		zz1 = zz1.make(numWords)
-		copy(zz1, RR)
-		RR = zz1
+		zz = zz.make(numWords)
+		copy(zz, RR)
+		RR = zz
 	}
 
 	// one = 1, with equal length to that of m
