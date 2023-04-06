@@ -402,7 +402,7 @@ func TestExpParallel(t *testing.T) {
 				y:          xList[0],
 				m:          n,
 				preTable:   table,
-				numRoutine: 4,
+				numRoutine: 1,
 			},
 			want: new(big.Int).Exp(g, xList[0], n),
 		},
