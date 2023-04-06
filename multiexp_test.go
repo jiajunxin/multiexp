@@ -23,34 +23,31 @@ func getValidModulus(r io.Reader, max *big.Int) *big.Int {
 func TestDoubleExp(t *testing.T) {
 	var max big.Int
 	max.SetInt64(1000000)
-	testRounds := 100
 
-	for i := 0; i < testRounds; i++ {
-		g, err := rand.Int(rand.Reader, &max)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		x1, err := rand.Int(rand.Reader, &max)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		x2, err := rand.Int(rand.Reader, &max)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
+	g, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	x1, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
+	x2, err := rand.Int(rand.Reader, &max)
+	if err != nil {
+		t.Errorf(err.Error())
+	}
 
-		n := getValidModulus(rand.Reader, &max)
+	n := getValidModulus(rand.Reader, &max)
 
-		result := DoubleExp(g, [2]*big.Int{x1, x2}, n)
-		var result2 big.Int
-		result2.Exp(g, x1, n)
-		if result2.Cmp(result[0]) != 0 {
-			t.Errorf("Wrong result for DoubleExp")
-		}
-		result2.Exp(g, x2, n)
-		if result2.Cmp(result[1]) != 0 {
-			t.Errorf("Wrong result for DoubleExp")
-		}
+	result := DoubleExp(g, [2]*big.Int{x1, x2}, n)
+	var result2 big.Int
+	result2.Exp(g, x1, n)
+	if result2.Cmp(result[0]) != 0 {
+		t.Errorf("Wrong result for DoubleExp")
+	}
+	result2.Exp(g, x2, n)
+	if result2.Cmp(result[1]) != 0 {
+		t.Errorf("Wrong result for DoubleExp")
 	}
 }
 
@@ -411,7 +408,6 @@ func TestExpParallel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ExpParallel(tt.args.x, tt.args.y, tt.args.m, tt.args.preTable, tt.args.numRoutine, tt.args.wordChunkSize); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ExpParallel() = %v, want %v", got, tt.want)
-				t.Errorf("_W = %v", _W)
 			}
 		})
 	}

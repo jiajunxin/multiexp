@@ -56,11 +56,9 @@ func getBenchParameters(numX int) (*big.Int, *big.Int, []*big.Int) {
 	onceBenchParameters.Do(func() {
 		g, mod = new(big.Int), new(big.Int)
 		g, _ = rand.Int(rand.Reader, getBenchGroupLimit())
-		g.Add(g, big1)
 		mod = getValidModulus(rand.Reader, getBenchGroupLimit())
 		for i := 0; i < 4; i++ {
 			x, _ := rand.Int(rand.Reader, getBenchRandLimit())
-			g.Add(g, big1)
 			xList = append(xList, x)
 		}
 	})
