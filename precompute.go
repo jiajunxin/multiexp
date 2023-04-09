@@ -83,11 +83,13 @@ func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat,
 	ret := nat(nil).make(numWords)
 	copy(ret, power0)
 	temp := nat(nil).make(numWords)
+	receivedTask := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case l := <-pivots:
+			receivedTask = true
 			r := l + wordChunkSize
 			if r > len(y) {
 				r = len(y)
@@ -102,10 +104,12 @@ func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat,
 				}
 			}
 		default:
-			if len(pivots) == 0 {
+			if receivedTask {
 				outputs <- ret
 				return
 			}
+			outputs <- nil
+			return
 		}
 	}
 }

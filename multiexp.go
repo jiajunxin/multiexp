@@ -334,31 +334,38 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine, wordChunkSize
 func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutines, wordChunkSize int) nat {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	power0, _, k0, numWords := montgomerySetup(x, m)
+
 	numPivots := len(y) / wordChunkSize
 	if len(y)%wordChunkSize != 0 {
 		numPivots++
 	}
 	pivots := make(chan int, numPivots)
+	defer close(pivots)
 	for i := 0; i < len(y); i += wordChunkSize {
 		pivots <- i
 	}
+
 	outputs := make(chan nat, numRoutines)
+	defer close(outputs)
 	for i := 0; i < numRoutines; i++ {
 		go table.routineExpNNMontgomery(ctx, power0, y, m, k0, wordChunkSize, pivots, outputs)
 	}
+
 	ret := power0
 	temp := nat(nil).make(numWords)
 	for out := range outputs {
-		temp = temp.montgomery(ret, out, m, k0, numWords)
-		ret, temp = temp, ret
+		if out != nil {
+			temp = temp.montgomery(ret, out, m, k0, numWords)
+			ret, temp = temp, ret
+		}
 		numRoutines--
 		if numRoutines == 0 {
-			close(pivots)
-			close(outputs)
 			break
 		}
 	}
+
 	one := make(nat, numWords)
 	one[0] = 1
 	temp = temp.montgomery(ret, one, m, k0, numWords)

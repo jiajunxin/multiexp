@@ -366,17 +366,6 @@ func TestFourfoldExpParallel(t *testing.T) {
 }
 
 func TestExpParallel(t *testing.T) {
-	//randLimit := new(big.Int)
-	//randLimit.SetInt64(1000000000)
-	//g, err := rand.Int(rand.Reader, randLimit)
-	//if err != nil {
-	//	t.Errorf(err.Error())
-	//}
-	//x, err := rand.Int(rand.Reader, randLimit)
-	//if err != nil {
-	//	t.Errorf(err.Error())
-	//}
-	//n := getValidModulus(rand.Reader, randLimit)
 	g, n, xList := getBenchParameters(1)
 	table := getBenchPrecomputeTable()
 	type args struct {
@@ -393,13 +382,57 @@ func TestExpParallel(t *testing.T) {
 		want *big.Int
 	}{
 		{
-			name: "TestExpParallel",
+			name: "TestExpParallel_1",
 			args: args{
 				x:          g,
 				y:          xList[0],
 				m:          n,
 				preTable:   table,
 				numRoutine: 1,
+			},
+			want: new(big.Int).Exp(g, xList[0], n),
+		},
+		{
+			name: "TestExpParallel_4",
+			args: args{
+				x:          g,
+				y:          xList[0],
+				m:          n,
+				preTable:   table,
+				numRoutine: 4,
+			},
+			want: new(big.Int).Exp(g, xList[0], n),
+		},
+		{
+			name: "TestExpParallel_20",
+			args: args{
+				x:          g,
+				y:          xList[0],
+				m:          n,
+				preTable:   table,
+				numRoutine: 20,
+			},
+			want: new(big.Int).Exp(g, xList[0], n),
+		},
+		{
+			name: "TestExpParallel_101",
+			args: args{
+				x:          g,
+				y:          xList[0],
+				m:          n,
+				preTable:   table,
+				numRoutine: 101,
+			},
+			want: new(big.Int).Exp(g, xList[0], n),
+		},
+		{
+			name: "TestExpParallel_1001",
+			args: args{
+				x:          g,
+				y:          xList[0],
+				m:          n,
+				preTable:   table,
+				numRoutine: 1001,
 			},
 			want: new(big.Int).Exp(g, xList[0], n),
 		},
