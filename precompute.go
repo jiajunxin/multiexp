@@ -103,11 +103,11 @@ func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat,
 					ret, temp = temp, ret
 				}
 			}
-		default:
+		default: // we get to here only when we receive nothing from the channel
 			if receivedTask {
 				outputs <- ret
 				return
-			}
+			} // we get to here because we have more channels than the tasks to be handled
 			outputs <- nil
 			return
 		}
