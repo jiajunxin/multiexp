@@ -44,3 +44,15 @@ We list the precomputation table size with respect to the maximum exponent bits 
 | Max exponent bits | $2^{20}$ | $2^{22}$ | $2^{24}$ | $2^{26}$ | $2^{28}$ |
 | ----------------- | -------- | -------- | -------- | -------- | -------- |
 | Table Size (MB)   | 8        | 32       | 128      | 512      | 2048     |
+
+## How to run?
+You can run the benchmark using Golang's official benchmark framework by:
+```
+go test -bench .
+```
+The default bit-length of exponent is set to be 20000 by the following parameter in benchmark_test.go
+```
+const numTestBits = 20000
+```
+The benchmark for BenchmarkExpParallel2 denotes the benchmark for calculating exponent with a pre-computation table using 2 threads, 
+BenchmarkExpParallel4 denotes the same experiment with 4 threads, and so on. 
