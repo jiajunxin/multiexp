@@ -333,7 +333,7 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine, wordChunkSize
 }
 
 // ExpParallelAuto computes x ** y mod |m| utilizing maximum CPU cores
-func ExpParallelAuto(x, y, m *big.Int, preTable *PreTable, wordChunkSize int) *big.Int {
+func ExpParallelAuto(x, y, m *big.Int, preTable *PreTable) *big.Int {
 	if preTable == nil {
 		panic("precompute table is nil")
 	}
@@ -349,11 +349,8 @@ func ExpParallelAuto(x, y, m *big.Int, preTable *PreTable, wordChunkSize int) *b
 		return new(big.Int).Exp(x, y, m)
 	}
 	numRoutine := runtime.NumCPU()
-	if wordChunkSize <= 0 {
-		wordChunkSize = defaultWordChunkSize
-	}
 	xWords, yWords, mWords := newNat(x), newNat(y), newNat(m)
-	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine, wordChunkSize)
+	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine, defaultWordChunkSize)
 	return new(big.Int).SetBits(zWords.intBits())
 }
 
