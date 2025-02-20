@@ -153,6 +153,15 @@ func BenchmarkDefaultExp(b *testing.B) {
 	}
 }
 
+func BenchmarkExpParallelAuto(b *testing.B) {
+	g, n, xList := getBenchParameters(1)
+	table := getBenchPrecomputeTable()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ExpParallelAuto(g, xList[0], n, table)
+	}
+}
+
 func BenchmarkExpParallel1(b *testing.B) {
 	g, n, xList := getBenchParameters(1)
 	table := getBenchPrecomputeTable()

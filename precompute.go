@@ -94,12 +94,14 @@ func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat,
 			if r > len(y) {
 				r = len(y)
 			}
+			bitPos := uint(0)
 			for i := l; i < r; i++ {
-				for j := 0; j < _W; j++ {
-					if (y[i] & masks[j]) != masks[j] {
-						continue
-					}
-					temp = temp.montgomery(ret, p.table[i][j], m, k0, numWords)
+				yi := y[i]
+				row := p.table[i]
+				for yi != 0 {
+					bitPos = uint(bits.TrailingZeros(uint(yi))) // find the lowest non-zero bit
+					yi &= ^(1 << bitPos)                        // make this bit 0
+					temp = temp.montgomery(ret, row[bitPos], m, k0, numWords)
 					ret, temp = temp, ret
 				}
 			}
