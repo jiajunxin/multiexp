@@ -446,7 +446,7 @@ func TestExpParallel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, _ := ExpParallelAuto(tt.args.x, tt.args.y, tt.args.m, tt.args.preTable); !reflect.DeepEqual(got, tt.want) {
+			if got, err := ExpParallelAuto(tt.args.x, tt.args.y, tt.args.m, tt.args.preTable); !reflect.DeepEqual(got, tt.want) || err != nil {
 				t.Errorf("Test case %v: ExpParallel() = %v, want %v", tt.name, got, tt.want)
 			}
 		})
