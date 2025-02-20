@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"runtime"
 )
 
 const defaultWordChunkSize = 2
@@ -323,6 +324,31 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine, wordChunkSize
 	if numRoutine <= 0 {
 		numRoutine = 1
 	}
+	if wordChunkSize <= 0 {
+		wordChunkSize = defaultWordChunkSize
+	}
+	xWords, yWords, mWords := newNat(x), newNat(y), newNat(m)
+	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine, wordChunkSize)
+	return new(big.Int).SetBits(zWords.intBits())
+}
+
+// ExpParallelAuto computes x ** y mod |m| utilizing maximum CPU cores
+func ExpParallelAuto(x, y, m *big.Int, preTable *PreTable, wordChunkSize int) *big.Int {
+	if preTable == nil {
+		panic("precompute table is nil")
+	}
+	if preTable.Base.Cmp(x) != 0 {
+		panic("precompute table not match: invalid base")
+	}
+	if preTable.Modulus.Cmp(m) != 0 {
+		panic("precompute table not match: invalid modulus")
+	}
+	// make sure x > 1, m is not nil, m > 0, m is odd, and y is positive,
+	// otherwise, use default Exp function
+	if x.Cmp(big1) <= 0 || y.Sign() <= 0 || m == nil || m.Sign() <= 0 || m.Bit(0) != 1 {
+		return new(big.Int).Exp(x, y, m)
+	}
+	numRoutine := runtime.NumCPU()
 	if wordChunkSize <= 0 {
 		wordChunkSize = defaultWordChunkSize
 	}
