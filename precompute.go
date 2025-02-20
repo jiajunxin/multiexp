@@ -95,11 +95,12 @@ func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat,
 				r = len(y)
 			}
 			for i := l; i < r; i++ {
+				row := p.table[i]
 				for j := 0; j < _W; j++ {
 					if (y[i] & masks[j]) != masks[j] {
 						continue
 					}
-					temp = temp.montgomery(ret, p.table[i][j], m, k0, numWords)
+					temp = temp.montgomery(ret, row[j], m, k0, numWords)
 					ret, temp = temp, ret
 				}
 			}
