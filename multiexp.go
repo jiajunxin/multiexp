@@ -333,25 +333,25 @@ func ExpParallel(x, y, m *big.Int, preTable *PreTable, numRoutine, wordChunkSize
 }
 
 // ExpParallelAuto computes x ** y mod |m| utilizing maximum CPU cores
-func ExpParallelAuto(x, y, m *big.Int, preTable *PreTable) *big.Int {
+func ExpParallelAuto(x, y, m *big.Int, preTable *PreTable) (*big.Int, error) {
 	if preTable == nil {
-		panic("precompute table is nil")
+		return new(big.Int).Exp(x, y, m), fmt.Errorf("precompute table is nil")
 	}
 	if preTable.Base.Cmp(x) != 0 {
-		panic("precompute table not match: invalid base")
+		return new(big.Int).Exp(x, y, m), fmt.Errorf("precompute table not match: invalid base")
 	}
 	if preTable.Modulus.Cmp(m) != 0 {
-		panic("precompute table not match: invalid modulus")
+		return new(big.Int).Exp(x, y, m), fmt.Errorf("precompute table not match: invalid modulus")
 	}
 	// make sure x > 1, m is not nil, m > 0, m is odd, and y is positive,
 	// otherwise, use default Exp function
 	if x.Cmp(big1) <= 0 || y.Sign() <= 0 || m == nil || m.Sign() <= 0 || m.Bit(0) != 1 {
-		return new(big.Int).Exp(x, y, m)
+		return new(big.Int).Exp(x, y, m), fmt.Errorf("please make sure x > 1")
 	}
 	numRoutine := runtime.NumCPU()
 	xWords, yWords, mWords := newNat(x), newNat(y), newNat(m)
 	zWords := expNNMontgomeryPrecomputedParallel(xWords, yWords, mWords, preTable, numRoutine, defaultWordChunkSize)
-	return new(big.Int).SetBits(zWords.intBits())
+	return new(big.Int).SetBits(zWords.intBits()), nil
 }
 
 func expNNMontgomeryPrecomputedParallel(x, y, m nat, table *PreTable, numRoutines, wordChunkSize int) nat {
