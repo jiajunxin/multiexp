@@ -97,9 +97,6 @@ func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat,
 			bitPos := uint(0)
 			for i := l; i < r; i++ {
 				yi := y[i]
-				if yi == 0 {
-					continue
-				}
 				row := p.table[i]
 				for yi != 0 {
 					bitPos = uint(bits.TrailingZeros(uint(yi))) // find the lowest non-zero bit
@@ -107,13 +104,6 @@ func (p *PreTable) routineExpNNMontgomery(ctx context.Context, power0, y, m nat,
 					temp = temp.montgomery(ret, row[bitPos], m, k0, numWords)
 					ret, temp = temp, ret
 				}
-				// for j := bits.TrailingZeros(uint(yi)); j < _W; j++ {
-				// 	if (yi & masks[j]) != masks[j] {
-				// 		continue
-				// 	}
-				// 	temp = temp.montgomery(ret, p.table[i][j], m, k0, numWords)
-				// 	ret, temp = temp, ret
-				// }
 			}
 		default: // we get to here only when we receive nothing from the channel
 			if receivedTask {
